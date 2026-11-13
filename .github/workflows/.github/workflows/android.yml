@@ -23,7 +23,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -38,13 +37,14 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Install Node dependencies
-        run: npm install
-
-      - name: Validate application files
+      - name: Validate project files
         run: |
-          test -f www/index.html
+          test -f package.json
           test -f capacitor.config.json
+          test -f www/index.html
+
+      - name: Install dependencies
+        run: npm install
 
       - name: Create Android project
         run: npx cap add android
