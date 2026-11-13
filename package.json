@@ -1,0 +1,17 @@
+
+{
+  "name": "bati-pilot-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BATI PILOT Android Application",
+  "scripts": {
+    "android:sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/core": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0"
+  }
+}
