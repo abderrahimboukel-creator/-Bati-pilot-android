@@ -3245,9 +3245,26 @@ function downloadJSON(data,name){const blob=new Blob([JSON.stringify(data,null,2
 async function exportProject(){
  try{
   const stored=await getAll(),all=await Promise.all(stored.map(project=>hydrateProjectMedia(project)));
-  downloadJSON({format:'BatiPilot',version:2,exportedAt:new Date().toISOString(),projects:all},'BATI_PILOT_all_projects.json');
-  toast(t('jsonExported'));
- }catch(err){console.error(err);toast(t('storageErr'))}
+  const exportData={format:'BatiPilot',version:2,exportedAt:new Date().toISOString(),projects:all};
+  const fileName='BATI_PILOT_all_projects.json';
+  const isNative=!!(window.Capacitor&&typeof window.Capacitor.isNativePlatform==='function'&&window.Capacitor.isNativePlatform());
+
+  if(isNative){
+   const bridge=await import('./printer-bridge.js');
+   await bridge.saveJsonFile(JSON.stringify(exportData,null,2),fileName);
+   toast(currentLang==='fr'
+    ?'Fichier JSON prêt : choisissez où l’enregistrer ou le partager.'
+    :'ملف JSON جاهز: اختر مكان حفظه أو مشاركته.');
+  }else{
+   downloadJSON(exportData,fileName);
+   toast(t('jsonExported'));
+  }
+ }catch(err){
+  console.error('[BATI PILOT] JSON export failed:',err);
+  toast(currentLang==='fr'
+   ?'Échec de l’export JSON : vérifiez le stockage ou les options de partage.'
+   :'تعذر تصدير JSON. تحقق من مساحة التخزين أو خيارات المشاركة.');
+ }
 }
 async function importFile(file){
  if(!file)return;
