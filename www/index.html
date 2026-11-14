@@ -1254,15 +1254,43 @@ function historyStoreKey(projectId,page){return `${projectId}::${page}`}
 function historyPageIsEditable(page){return ['checklist','pv','rec','etp','bet','scratchpad'].includes(page)}
 function historyPageTitle(page){return ({dashboard:'Dashboard',checklist:'Liste de contrôle',charts:'Courbes d’Avancement',pv:'PV de visite chantier',rec:'Recommandation client',etp:'Point à trancher avec ETP',bet:'Décision BET',globalReport:'Rapport Global du Projet',scratchpad:'Espace de dessin'})[page]||page}
 function historyState(projectId,page){const key=historyStoreKey(projectId,page);if(!pageHistoryStore.has(key))pageHistoryStore.set(key,{undo:[],redo:[],events:[]});return pageHistoryStore.get(key)}
-function historySnapshotAt(obj,path){let cur=obj;for(const part of path){if(!cur||!Object.prototype.hasOwnProperty.call(cur,part))return {exists:false};cur=cur[part]}return {exists:true,value:historyClone(cur)}}
-function historySameSnapshot(a,b){return a.exists===b.exists&&(!a.exists||JSON.stringify(a.value)===JSON.stringify(b.value))}
+function historyReadPath(obj,path){let cur=obj;for(const part of path){if(!cur||!Object.prototype.hasOwnProperty.call(cur,part))return {exists:false};cur=cur[part]}return {exists:true,value:cur}}
+function historySnapshotAt(obj,path){const current=historyReadPath(obj,path);if(!current.exists)return {exists:false,kind:'json'};const value=current.value;return {exists:true,kind:'json',isUndefined:value===undefined,value:value===undefined?null:JSON.stringify(value)}}
+function historySameSnapshot(a,b){return a.exists===b.exists&&(!a.exists||(a.isUndefined===b.isUndefined&&(a.isUndefined||a.value===b.value)))}
+function historyArrayKey(path){if(path.length!==1)return null;return ({blocDetails:'blocId',checklist:'id',pvReports:'id'})[path[0]]||null}
+function historyArrayDiffSnapshots(before,after,key){
+ const makeMap=arr=>{
+  const map=new Map(),order=[];
+  for(const item of arr){if(!item||typeof item!=='object'||item[key]===undefined||item[key]===null||map.has(item[key]))return null;const id=item[key];map.set(id,{item,json:JSON.stringify(item)});order.push(id)}
+  return {map,order};
+ };
+ const beforeData=makeMap(before),afterData=makeMap(after);if(!beforeData||!afterData)return undefined;
+ const ids=new Set([...beforeData.map.keys(),...afterData.map.keys()]),changed=[];
+ ids.forEach(id=>{const b=beforeData.map.get(id),a=afterData.map.get(id);if(!b||!a||b.json!==a.json)changed.push(id)});
+ const orderSame=beforeData.order.length===afterData.order.length&&beforeData.order.every((id,i)=>id===afterData.order[i]);
+ if(!changed.length&&orderSame)return null;
+ const snapshot=(data)=>({exists:true,kind:'array-diff',key,order:data.order,items:changed.map(id=>{const entry=data.map.get(id);return {id,exists:!!entry,value:entry?entry.json:null}})});
+ return {before:snapshot(beforeData),after:snapshot(afterData)};
+}
 function historyChangesForPage(before,after,page){
  const fields=page==='checklist'?['blocDetails','checklist','blocks','floors','facades','buildingTrades','facadeTrades']:
   page==='pv'?['pvReports','pvWorkerMetiers','pvMetiers']:
   page==='scratchpad'?['scratchpad']:[];
  const paths=fields.map(key=>[key]);
  if(['rec','etp','bet'].includes(page))paths.push(['coordinationData',page]);
- return paths.map(path=>({path,before:historySnapshotAt(before,path),after:historySnapshotAt(after,path)})).filter(change=>!historySameSnapshot(change.before,change.after));
+ return paths.map(path=>{
+  const arrayKey=historyArrayKey(path);
+  if(arrayKey){
+   const oldValue=historyReadPath(before,path),newValue=historyReadPath(after,path);
+   if(oldValue.exists&&newValue.exists&&Array.isArray(oldValue.value)&&Array.isArray(newValue.value)){
+    const diff=historyArrayDiffSnapshots(oldValue.value,newValue.value,arrayKey);
+    if(diff===null)return null;
+    if(diff)return {path,before:diff.before,after:diff.after};
+   }
+  }
+  const oldSnapshot=historySnapshotAt(before,path),newSnapshot=historySnapshotAt(after,path);
+  return historySameSnapshot(oldSnapshot,newSnapshot)?null:{path,before:oldSnapshot,after:newSnapshot};
+ }).filter(Boolean);
 }
 function historyDescribe(page,changes){
  const paths=changes.map(x=>x.path.join('.'));
@@ -1278,19 +1306,23 @@ function historyDescribe(page,changes){
 }
 function historyAddEvent(state,action,label){state.events.unshift({action,label,at:new Date().toISOString()});if(state.events.length>PAGE_HISTORY_EVENT_LIMIT)state.events.length=PAGE_HISTORY_EVENT_LIMIT}
 function historyCaptureSavedProject(project,page){
- const after=historyClone(project),before=historyBaseline.get(project.id);
+ const before=historyBaseline.get(project.id);
  if(before&&historyPageIsEditable(page)){
-  const changes=historyChangesForPage(before,after,page);
+  const changes=historyChangesForPage(before,project,page);
   if(changes.length){
    const state=historyState(project.id,page),label=historyDescribe(page,changes);
    state.undo.push({label,changes,at:new Date().toISOString()});
    if(state.undo.length>PAGE_HISTORY_LIMIT)state.undo.shift();
    state.redo=[];historyAddEvent(state,'Modification',label);
+   // Keep the baseline object and refresh only this page's changed fields.
+   // Snapshots are serialized strings, avoiding clones of unrelated project data.
+   changes.forEach(change=>historyApplySnapshot(before,change.path,change.after));
   }
- }
- historyBaseline.set(project.id,after);
+  before.updatedAt=project.updatedAt;
+ }else historyBaseline.set(project.id,historyClone(project));
  updatePageHistoryControls();
 }
+
 function updatePageHistoryControls(){
  document.querySelectorAll('.page-history-controls').forEach(toolbar=>{
   const page=toolbar.dataset.pageHistory,projectId=activeId,state=projectId?historyState(projectId,page):{undo:[],redo:[],events:[]};
@@ -1318,12 +1350,23 @@ function openPageHistory(page){
  openModal('Historique — '+historyPageTitle(page),body);
 }
 function historyApplySnapshot(project,path,snapshot){
- if(path.length===1){if(snapshot.exists)project[path[0]]=historyClone(snapshot.value);else delete project[path[0]];return}
+ if(snapshot.kind==='array-diff'){
+  const current=historyReadPath(project,path),items=Array.isArray(current.value)?current.value:[],map=new Map(items.map(item=>[item?.[snapshot.key],item]));
+  snapshot.items.forEach(change=>{if(change.exists)map.set(change.id,JSON.parse(change.value));else map.delete(change.id)});
+  const ordered=[],seen=new Set();snapshot.order.forEach(id=>{if(map.has(id)){ordered.push(map.get(id));seen.add(id)}});
+  map.forEach((item,id)=>{if(!seen.has(id))ordered.push(item)});
+  if(path.length===1)project[path[0]]=ordered;
+  else{let parent=project;for(let i=0;i<path.length-1;i++){const key=path[i];if(!parent[key]||typeof parent[key]!=='object')parent[key]={};parent=parent[key]}parent[path[path.length-1]]=ordered}
+  return;
+ }
+ const value=snapshot.exists?(snapshot.isUndefined?undefined:JSON.parse(snapshot.value)):undefined;
+ if(path.length===1){if(snapshot.exists)project[path[0]]=value;else delete project[path[0]];return}
  let parent=project;
  for(let i=0;i<path.length-1;i++){const key=path[i];if(!parent[key]||typeof parent[key]!=='object')parent[key]={};parent=parent[key]}
- const key=path[path.length-1];if(snapshot.exists)parent[key]=historyClone(snapshot.value);else delete parent[key];
+ const key=path[path.length-1];if(snapshot.exists)parent[key]=value;else delete parent[key];
  if(path[0]==='coordinationData'&&project.coordinationData&&Object.keys(project.coordinationData).length===0)delete project.coordinationData;
 }
+
 async function applyPageHistory(direction){
  const page=activeTab,project=activeProject();if(!project||!historyPageIsEditable(page)||historyBusy)return;
  const state=historyState(project.id,page),source=direction==='undo'?state.undo:state.redo,target=direction==='undo'?state.redo:state.undo;
@@ -1347,7 +1390,7 @@ function toast(msg){$('toast').textContent=msg;$('toast').classList.remove('hidd
 function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const d=req.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'})};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 function tx(mode='readonly'){return db.transaction(STORE,mode).objectStore(STORE)}
 function getAll(){return new Promise((resolve,reject)=>{const r=tx().getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error)})}
-function put(p,options={}){const pageAtWrite=options.historyPage||activeTab;return new Promise((resolve,reject)=>{const r=tx('readwrite').put(p);r.onsuccess=()=>{if(options.skipHistory)historyBaseline.set(p.id,historyClone(p));else historyCaptureSavedProject(p,pageAtWrite);resolve()};r.onerror=()=>reject(r.error)})}
+function put(p,options={}){const pageAtWrite=options.historyPage||activeTab;return new Promise((resolve,reject)=>{const r=tx('readwrite').put(p);r.onsuccess=()=>{if(options.skipHistory){if(!options.skipBaseline)historyBaseline.set(p.id,historyClone(p))}else historyCaptureSavedProject(p,pageAtWrite);resolve()};r.onerror=()=>reject(r.error)})}
 function remove(id){return new Promise((resolve,reject)=>{const r=tx('readwrite').delete(id);r.onsuccess=()=>{historyBaseline.delete(id);for(const key of [...pageHistoryStore.keys()])if(key.startsWith(id+'::'))pageHistoryStore.delete(key);resolve()};r.onerror=()=>reject(r.error)})}
 function showScreen(id){['welcome','createPage','appPage'].forEach(x=>$(x).classList.toggle('hidden',x!==id))}
 
@@ -1501,24 +1544,25 @@ function renderForm(p={},target=$('projectFormPanel')){
 
 function compressImage(file,max=800,quality=.78){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);resolve(c.toDataURL('image/jpeg',quality))};img.onerror=reject;img.src=reader.result};reader.onerror=reject;reader.readAsDataURL(file)})}
 
-function ensureProjectEntityIds(p){
- p.blocDetails=Array.isArray(p.blocDetails)?p.blocDetails:[];
+function ensureProjectEntityIds(p,tracker=null){
+ const markChanged=()=>{if(tracker)tracker.changed=true};
+ if(!Array.isArray(p.blocDetails)){p.blocDetails=[];markChanged()}
  const makeIds=(detail,values,key)=>{
-  detail[key]=Array.isArray(detail[key])?detail[key]:[];
-  while(detail[key].length<values.length)detail[key].push(uid(key+'_'));
-  if(detail[key].length>values.length)detail[key].length=values.length;
-  const seen=new Set();detail[key]=detail[key].map((id,i)=>{if(!id||seen.has(id))id=uid(key+'_');seen.add(id);return id});
+  if(!Array.isArray(detail[key])){detail[key]=[];markChanged()}
+  while(detail[key].length<values.length){detail[key].push(uid(key+'_'));markChanged()}
+  if(detail[key].length>values.length){detail[key].length=values.length;markChanged()}
+  const seen=new Set();detail[key]=detail[key].map((id,i)=>{if(!id||seen.has(id)){id=uid(key+'_');markChanged()}seen.add(id);return id});
  };
  const blocIds=new Set();
  p.blocDetails.forEach((b,i)=>{
-  if(!b.blocId||blocIds.has(b.blocId))b.blocId=uid('bloc_');blocIds.add(b.blocId);
-  ['floors','facades','buildingTrades','facadeTrades'].forEach(k=>b[k]=Array.isArray(b[k])?b[k]:[]);
+  if(!b.blocId||blocIds.has(b.blocId)){b.blocId=uid('bloc_');markChanged()}blocIds.add(b.blocId);
+  ['floors','facades','buildingTrades','facadeTrades'].forEach(k=>{if(!Array.isArray(b[k])){b[k]=[];markChanged()}});
   makeIds(b,b.floors,'floorIds');makeIds(b,b.facades,'facadeIds');
   makeIds(b,b.buildingTrades,'buildingTradeIds');makeIds(b,b.facadeTrades,'facadeTradeIds');
  });
- p.checklist=Array.isArray(p.checklist)?p.checklist:[];
+ if(!Array.isArray(p.checklist)){p.checklist=[];markChanged()}
  p.checklist.forEach(cp=>{
-  if(!cp.id)cp.id=uid('cp_');
+  if(!cp.id){cp.id=uid('cp_');markChanged()}
   let detail=p.blocDetails.find(b=>cp.blocId&&b.blocId===cp.blocId);
   if(!detail){
    let candidates=p.blocDetails.filter(b=>cp.bloc
@@ -1532,39 +1576,47 @@ function ensureProjectEntityIds(p){
    if(candidates.length===1)detail=candidates[0];
   }
   if(detail){
-   cp.blocId=detail.blocId;cp.bloc=detail.isMonobloc?'':detail.name;
+   const bloc=detail.isMonobloc?'':detail.name;
+   if(cp.blocId!==detail.blocId){cp.blocId=detail.blocId;markChanged()}
+   if(cp.bloc!==bloc){cp.bloc=bloc;markChanged()}
    const type=cp.metierType==='facade'?'facade':'building';
    const trades=type==='facade'?detail.facadeTrades:detail.buildingTrades;
    const ids=type==='facade'?detail.facadeTradeIds:detail.buildingTradeIds;
    let idx=cp.metierId?ids.indexOf(cp.metierId):-1;
    if(idx<0)idx=trades.findIndex(x=>String(x)===String(cp.metier));
-   if(idx>=0){cp.metierId=ids[idx];cp.metier=trades[idx]}
+   if(idx>=0){if(cp.metierId!==ids[idx]){cp.metierId=ids[idx];markChanged()}if(cp.metier!==trades[idx]){cp.metier=trades[idx];markChanged()}}
    const locs=type==='facade'?detail.facades:detail.floors;
    const locIds=type==='facade'?detail.facadeIds:detail.floorIds;
    let li=cp.locationId?locIds.indexOf(cp.locationId):-1;
    if(li<0)li=locs.findIndex(x=>String(x)===String(cp.location));
-   if(li>=0){cp.locationId=locIds[li];cp.location=locs[li]}
+   if(li>=0){if(cp.locationId!==locIds[li]){cp.locationId=locIds[li];markChanged()}if(cp.location!==locs[li]){cp.location=locs[li];markChanged()}}
   }
  });
  return p;
 }
-function syncProjectArraysFromBlocs(p){
+
+function syncProjectArraysFromBlocs(p,trackChanges=false){
+ const tracker=trackChanges?{changed:false}:null,markChanged=()=>{if(tracker)tracker.changed=true};
  if(!Array.isArray(p.blocDetails)||!p.blocDetails.length){
   const names=Array.isArray(p.blocks)?p.blocks:[];
   const base={floors:p.floors||[],facades:p.facades||[],buildingTrades:p.buildingTrades||[],facadeTrades:p.facadeTrades||[]};
-  p.blocDetails=names.length?names.map(name=>({name,isMonobloc:false,...JSON.parse(JSON.stringify(base))})):((Object.values(base).some(a=>Array.isArray(a)&&a.length))?[{name:'Monobloc',isMonobloc:true,...JSON.parse(JSON.stringify(base))}]:[]);
+  const hasLegacy=Object.values(base).some(a=>Array.isArray(a)&&a.length);
+  if(names.length){p.blocDetails=names.map(name=>({name,isMonobloc:false,...JSON.parse(JSON.stringify(base))}));markChanged()}
+  else if(hasLegacy){p.blocDetails=[{name:'Monobloc',isMonobloc:true,...JSON.parse(JSON.stringify(base))}];markChanged()}
+  else if(!Array.isArray(p.blocDetails)){p.blocDetails=[];markChanged()}
  }
- ensureProjectEntityIds(p);
- const uniq=arr=>[...new Set(arr.filter(Boolean))];
- const bd=p.blocDetails||[];
+ ensureProjectEntityIds(p,tracker);
+ const uniq=arr=>[...new Set(arr.filter(Boolean))],bd=p.blocDetails||[];
+ const assignArray=(key,next)=>{const old=p[key];if(!Array.isArray(old)||old.length!==next.length||next.some((value,i)=>old[i]!==value))markChanged();p[key]=next};
  // Legacy aggregate arrays remain available to older pages; identities stay in blocDetails.
- p.blocks=bd.filter(b=>!b.isMonobloc).map(b=>b.name);
- p.floors=uniq(bd.flatMap(b=>b.floors||[]));
- p.facades=uniq(bd.flatMap(b=>b.facades||[]));
- p.buildingTrades=uniq(bd.flatMap(b=>b.buildingTrades||[]));
- p.facadeTrades=uniq(bd.flatMap(b=>b.facadeTrades||[]));
- return p;
+ assignArray('blocks',bd.filter(b=>!b.isMonobloc).map(b=>b.name));
+ assignArray('floors',uniq(bd.flatMap(b=>b.floors||[])));
+ assignArray('facades',uniq(bd.flatMap(b=>b.facades||[])));
+ assignArray('buildingTrades',uniq(bd.flatMap(b=>b.buildingTrades||[])));
+ assignArray('facadeTrades',uniq(bd.flatMap(b=>b.facadeTrades||[])));
+ return trackChanges?{project:p,changed:!!tracker.changed}:p;
 }
+
 function blocDisplayLabel(p,detail){
  const same=(p.blocDetails||[]).filter(b=>!b.isMonobloc&&!detail.isMonobloc&&String(b.name)===String(detail.name));
  if(same.length>1)return `${detail.name} (${same.indexOf(detail)+1})`;
@@ -1597,39 +1649,41 @@ function tradeProgressIsExpanded(detail,key){
  ensureTradeProgressData(detail);
  return detail.tradeProgressExpanded[key]!==false;
 }
-function getProjectTradeScopes(p){
- ensureProjectEntityIds(p);
- const scopes=[];
+function getProjectTradeScopes(p,entitiesReady=false){
+ if(!entitiesReady)ensureProjectEntityIds(p);
+ const scopes=[],matchesByTrade=new Map(),detailsById=new Map((p.blocDetails||[]).map(detail=>[detail.blocId,detail]));
+ // Index each control point once instead of filtering the complete checklist for every trade.
+ (p.checklist||[]).forEach(cp=>{
+  const detail=cp.blocId?detailsById.get(cp.blocId):detailForControlPoint(p,cp);
+  if(!detail)return;
+  const type=cp.metierType||'building',tradeKey=cp.metierId?'id:'+cp.metierId:'name:'+String(cp.metier||'');
+  const key=JSON.stringify([detail.blocId,type,tradeKey]);
+  if(!matchesByTrade.has(key))matchesByTrade.set(key,[]);
+  matchesByTrade.get(key).push(cp);
+ });
  (p.blocDetails||[]).forEach(detail=>{
   [...scopedTradesFor(p,detail,'building'),...scopedTradesFor(p,detail,'facade')].forEach(m=>{
-   const isFacade=m.type==='facade';
-   const names=isFacade?(detail.facades||[]):(detail.floors||[]);
-   const ids=isFacade?(detail.facadeIds||[]):(detail.floorIds||[]);
-   const matches=(p.checklist||[]).filter(cp=>{
-    const cpDetail=detailForControlPoint(p,cp);
-    if(cpDetail?.blocId!==detail.blocId||(cp.metierType||'building')!==m.type)return false;
-    return cp.metierId?cp.metierId===m.id:String(cp.metier||'')===m.name;
-   });
-   const locations=names.map((name,i)=>({id:ids[i]||'',name}));
+   const isFacade=m.type==='facade',names=isFacade?(detail.facades||[]):(detail.floors||[]),ids=isFacade?(detail.facadeIds||[]):(detail.floorIds||[]);
+   const tradeKey=m.id?'id:'+m.id:'name:'+String(m.name||''),matches=matchesByTrade.get(JSON.stringify([detail.blocId,m.type,tradeKey]))||[];
+   const locations=names.map((name,i)=>({id:ids[i]||'',name})),locationIds=new Set(locations.map(x=>x.id).filter(Boolean)),locationNames=new Set(locations.map(x=>x.name));
+   let hasUnlocated=false;
    matches.forEach(cp=>{
-    if(cp.locationId&&!locations.some(x=>x.id===cp.locationId))locations.push({id:cp.locationId,name:cp.location||'—'});
-    else if(!cp.locationId&&cp.location&&!locations.some(x=>x.name===cp.location))locations.push({id:'legacy:'+cp.location,name:cp.location});
+    if(cp.locationId&&!locationIds.has(cp.locationId)){
+     locations.push({id:cp.locationId,name:cp.location||'—'});locationIds.add(cp.locationId);if(cp.location)locationNames.add(cp.location);
+    }else if(!cp.locationId&&cp.location&&!locationNames.has(cp.location)){
+     locations.push({id:'legacy:'+cp.location,name:cp.location});locationNames.add(cp.location);locationIds.add('legacy:'+cp.location);
+    }else if(!cp.locationId&&!cp.location)hasUnlocated=true;
    });
-   if(!locations.length||matches.some(cp=>!cp.locationId&&!cp.location)){
-    if(!locations.some(x=>!x.id&&!x.name))locations.push({id:'',name:'—'});
-   }
+   if(!locations.length||hasUnlocated){if(!locations.some(x=>!x.id&&!x.name))locations.push({id:'',name:'—'})}
    locations.forEach(loc=>{
     const locationId=loc.id||'',key=tradeProgressScopeKey(m.type,m.id,locationId);
-    scopes.push({
-     detail,tradeId:m.id,name:m.name,type:m.type,
-     bloc:detail.isMonobloc?'Monobloc':(detail.name||'—'),blocId:detail.blocId,
-     location:loc.name||'—',locationId,key,pct:tradeProgressValue(detail,key)
-    });
+    scopes.push({detail,tradeId:m.id,name:m.name,type:m.type,bloc:detail.isMonobloc?'Monobloc':(detail.name||'—'),blocId:detail.blocId,location:loc.name||'—',locationId,key,pct:tradeProgressValue(detail,key)});
    });
   });
  });
  return scopes;
 }
+
 function controlPointMatchesScope(p,cp,scope){
  const detail=detailForControlPoint(p,cp);
  if((cp.blocId||detail?.blocId||'')!==scope.blocId)return false;
@@ -1668,7 +1722,20 @@ async function saveProjectFromForm(){
  }catch(e){console.error('Project save failed:',e);toast(t('dbSaveErr'))}
 }
 
-async function loadProjects(){projects=await getAll();for(const p of projects){const before=JSON.stringify(p);syncProjectArraysFromBlocs(p);if(JSON.stringify(p)!==before){try{await put(p,{skipHistory:true})}catch(e){console.error('Project migration failed',p.id,e)}}}projects.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));for(const p of projects)historyBaseline.set(p.id,historyClone(p));renderProjectSelect();updatePageHistoryControls()}
+async function loadProjects(){
+ projects=await getAll();
+ for(const p of projects){
+  const sync=syncProjectArraysFromBlocs(p,true);
+  if(sync.changed){try{await put(p,{skipHistory:true,skipBaseline:true})}catch(e){console.error('Project migration failed',p.id,e)}}
+ }
+ projects.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
+ // Only the active project needs an undo baseline; inactive projects are re-baselined on selection.
+ historyBaseline.clear();
+ const active=projects.find(p=>p.id===activeId);
+ if(active)historyBaseline.set(active.id,historyClone(active));
+ renderProjectSelect();updatePageHistoryControls();
+}
+
 function renderProjectSelect(){$('projectSelect').innerHTML=projects.map(p=>`<option value="${safe(p.id)}">${safe(p.name)}${p.code?' — '+safe(p.code):''}</option>`).join('');if(activeId&&projects.some(p=>p.id===activeId))$('projectSelect').value=activeId}
 function activeProject(){return projects.find(p=>p.id===activeId)}
 function renderHeader(p){$('headerProjectName').textContent=p.name;$('headerProjectCode').textContent=p.code||t('noCode');$('headerThumb').innerHTML=p.image?`<img src="${p.image}" alt="Project">`:'🏗️';$('dashProjectMeta').textContent=[p.code,p.company,p.owner].filter(Boolean).join(' · ')||t('dashMetaDefault')}
@@ -1693,7 +1760,8 @@ function switchTab(tab){
 }
 
 function renderActiveView(){
- const p=activeProject();if(!p){showScreen('welcome');return}
+ const p=activeProject();if(!p){historyBaseline.clear();showScreen('welcome');return}
+ if(!historyBaseline.has(p.id)){historyBaseline.clear();historyBaseline.set(p.id,historyClone(p))}
  renderHeader(p);renderProjectSelect();showScreen('appPage');
  if(activeTab==='dashboard')renderDashboard();
  else if(activeTab==='checklist')renderChecklistPage();
@@ -1774,9 +1842,9 @@ function chartCpFromScope(scope){
   location:scope.location==='—'?'':scope.location,locationId:scope.locationId
  };
 }
-function chartData(p,dateRange=null){
+function chartData(p,dateRange=null,scopes=null){
  // Progress is a current manual value for each Métier/location pair; visit dates no longer affect it.
- return getProjectTradeScopes(p).map(scope=>{
+ return (scopes||getProjectTradeScopes(p)).map(scope=>{
   const cp=chartCpFromScope(scope),key=chartGroupKey(cp);
   return {
    key,name:scope.name,type:scope.type,bloc:scope.bloc,blocId:scope.blocId,
@@ -1787,26 +1855,29 @@ function chartData(p,dateRange=null){
   };
  });
 }
-function chartFiltered(){
+
+function chartFiltered(scopes=null){
  const p=activeProject();if(!p)return [];
  const b=$('chBloc').value,l=$('chLoc').value,m=$('chMetier').value,ty=$('chType').value;
- return chartData(p).map(g=>({...g,points:g.points.filter(x=>(!b||(x.cp.blocId||x.cp.bloc||'')===b)&&(!l||chartLocationKey(x.cp)===l))}))
+ return chartData(p,null,scopes).map(g=>({...g,points:g.points.filter(x=>(!b||(x.cp.blocId||x.cp.bloc||'')===b)&&(!l||chartLocationKey(x.cp)===l))}))
   .filter(g=>(!ty||g.type===ty)&&(!m||(g.tradeId?g.tradeId===m:g.type+'::'+g.name===m)))
   .map(g=>({...g,pct:g.points.length?Math.round(g.points.reduce((a,x)=>a+x.pct,0)/g.points.length):null,
    history:g.points.map(x=>({date:ct('progress'),pct:x.pct,visitId:''}))}))
   .filter(g=>g.pct!==null);
 }
+
 function chartEsc(v){return safe(String(v??''))}
 function fillChartFilters(p){
  ensureProjectEntityIds(p);
  const set=(id,items,first)=>{const el=$(id),old=el.value;el.innerHTML=`<option value="">${first}</option>`+items.map(x=>`<option value="${chartEsc(x.value)}">${chartEsc(x.label)}</option>`).join('');if(items.some(o=>o.value===old))el.value=old};
- const details=p.blocDetails||[],scopes=getProjectTradeScopes(p);
+ const details=p.blocDetails||[],scopes=getProjectTradeScopes(p,true);
  set('chBloc',details.map(d=>({value:d.blocId,label:blocDisplayLabel(p,d)})),ct('allBlocks'));
- const locs=new Map();scopes.forEach(scope=>{const cp=chartCpFromScope(scope),key=chartLocationKey(cp);if(!locs.has(key))locs.set(key,{value:key,label:[scope.bloc||'—',scope.type==='facade'?ct('facade'):ct('building'),scope.location||'—'].join(' | ')})});
+ const locs=new Map();scopes.forEach(scope=>{const cp=chartCpFromScope(scope),key=chartLocationKey(cp);if(!locs.has(key))locs.set(key,{value:key,label:[scope.bloc||'—',scope.type==='facade'?ct('facade'):ct('building'),scope.location||'—'].join(' | ')});});
  set('chLoc',[...locs.values()],ct('allLocs'));
  const tradeGroups=new Map();scopes.forEach(scope=>{const id=scope.tradeId||scope.type+'::'+scope.name;if(scope.name&&!tradeGroups.has(id))tradeGroups.set(id,{value:id,label:scope.name+' · '+(scope.type==='facade'?ct('facade'):ct('building'))+' · '+scope.bloc})});
  set('chMetier',[...tradeGroups.values()],ct('allTrades'));
  const ty=$('chType'),old=ty.value;ty.innerHTML=`<option value="">${ct('allTypes')}</option><option value="building">${ct('building')}</option><option value="facade">${ct('facade')}</option>`;ty.value=old;
+ return scopes;
 }
 
 function chartTradeFocus(groups){
@@ -1892,21 +1963,29 @@ async function exportChartsPDF(){
  },450);
 }
 function renderChartsPage(){
- const p=activeProject();if(!p||!$('chartsView'))return;fillChartFilters(p);const groups=chartFiltered(),focus=chartTradeFocus(groups);
+ const p=activeProject();if(!p||!$('chartsView'))return;const scopes=fillChartFilters(p),groups=chartFiltered(scopes),focus=chartTradeFocus(groups);
  const scopedPoints=groups.flatMap(g=>g.points.map(x=>x.pct));const overall=scopedPoints.length?Math.round(scopedPoints.reduce((a,v)=>a+v,0)/scopedPoints.length):null;
  $('chGlobal').textContent=overall===null?'—':overall+'%';$('chGlobalBar').style.width=(overall||0)+'%';$('chTradeCount').textContent=groups.length;$('chAdvanced').textContent=groups.filter(g=>g.pct>=80).length;$('chLate').textContent=groups.filter(g=>g.pct<30).length;
  $('chartModes').querySelectorAll('[data-chart]').forEach(b=>b.classList.toggle('active',b.dataset.chart===chartMode));
  if(chartMode==='bar')drawBar(groups);else if(chartMode==='line')drawTimeline(focus,false);else if(chartMode==='area')drawTimeline(focus,true);else drawDonut(focus);
  analysisRows('chByTrade',[...groups].sort((a,b)=>b.pct-a.pct).map(g=>({...g,name:chartGroupLabel(g)})));
- const allPts=groups.flatMap(g=>g.points.map(x=>({cp:x.cp,pct:x.pct})));const avgFor=fn=>{const a=allPts.filter(x=>fn(x.cp));return a.length?Math.round(a.reduce((s,x)=>s+x.pct,0)/a.length):null};
- const blocks=[...new Set(allPts.map(x=>x.cp.bloc||'').filter(Boolean))].map(name=>({name,pct:avgFor(cp=>(cp.bloc||'')===name)})).filter(x=>x.pct!==null);
- const locMap=new Map();allPts.forEach(x=>{const cp=x.cp,key=chartLocationKey(cp);if(!locMap.has(key))locMap.set(key,{name:[cp.bloc||'—',(cp.metierType||'building')==='facade'?ct('facade'):ct('building'),cp.location||'—'].join(' | '),pct:avgFor(c=>chartLocationKey(c)===key)})});const locs=[...locMap.values()].filter(x=>x.pct!==null);
+ const allPts=groups.flatMap(g=>g.points.map(x=>({cp:x.cp,pct:x.pct}))),blockStats=new Map(),locMap=new Map();
+ allPts.forEach(x=>{
+  const cp=x.cp,block=cp.bloc||'';
+  if(block){if(!blockStats.has(block))blockStats.set(block,{sum:0,count:0});const stat=blockStats.get(block);stat.sum+=x.pct;stat.count++}
+  const key=chartLocationKey(cp);
+  if(!locMap.has(key))locMap.set(key,{name:[cp.bloc||'—',(cp.metierType||'building')==='facade'?ct('facade'):ct('building'),cp.location||'—'].join(' | '),sum:0,count:0});
+  const loc=locMap.get(key);loc.sum+=x.pct;loc.count++;
+ });
+ const blocks=[...blockStats].map(([name,stat])=>({name,pct:Math.round(stat.sum/stat.count)}));
+ const locs=[...locMap.values()].map(stat=>({name:stat.name,pct:Math.round(stat.sum/stat.count)}));
  analysisRows('chByBlock',blocks);analysisRows('chByLoc',locs);
  $('chRemaining').innerHTML=groups.length?groups.map(g=>`<div class="chart-row"><span class="chart-row-name">${chartEsc(chartGroupLabel(g))}</span><div class="bar" style="display:flex"><span style="width:${g.pct}%;background:#0d9452"></span><span style="width:${100-g.pct}%;background:#e2e8f0"></span></div><b>${g.pct}/${100-g.pct}</b></div>`).join(''):`<div class="muted">${ct('empty')}</div>`;
  const tableGroups=new Map();groups.forEach(g=>g.points.forEach(x=>{const cp=x.cp,key=chartGroupKey(cp);if(!tableGroups.has(key))tableGroups.set(key,{name:g.name,type:g.type,bloc:cp.bloc||'—',loc:cp.location||'—',values:[]});tableGroups.get(key).values.push(x.pct)}));const rows=[...tableGroups.values()].map(r=>({...r,pct:Math.round(r.values.reduce((a,v)=>a+v,0)/r.values.length)})).sort((a,b)=>chartSortAsc?a.pct-b.pct:b.pct-a.pct);
  $('chSort').textContent=chartSortAsc?ct('sortAsc'):ct('sortDesc');
  $('chTable').innerHTML=rows.length?`<table class="chart-table"><thead><tr><th>Métier</th><th>${ct('type')}</th><th>${ct('bloc')}</th><th>${ct('loc')}</th><th>${ct('progress')}</th></tr></thead><tbody>${rows.map(r=>`<tr><td data-label="Métier">${chartEsc(r.name)}</td><td data-label="${ct('type')}">${r.type==='facade'?ct('facade'):ct('building')}</td><td data-label="${ct('bloc')}">${chartEsc(r.bloc)}</td><td data-label="${ct('loc')}">${chartEsc(r.loc)}</td><td data-label="${ct('progress')}"><div class="chart-mini"><b>${r.pct}%</b><div class="bar"><span style="width:${r.pct}%"></span></div></div></td></tr>`).join('')}</tbody></table>`:`<div class="chart-empty">${ct('empty')}</div>`;
 }
+
 ['chBloc','chLoc','chMetier','chType','chFocus'].forEach(id=>$(id).addEventListener('change',renderChartsPage));
 $('chReset').onclick=()=>{['chBloc','chLoc','chMetier','chType'].forEach(id=>$(id).value='');renderChartsPage()};
 $('chartModes').addEventListener('click',e=>{const b=e.target.closest('[data-chart]');if(!b)return;chartMode=b.dataset.chart;renderChartsPage()});
@@ -1935,7 +2014,7 @@ function populateChecklistFilters(p){
 
 function renderChecklistPage(){
  const p=activeProject();if(!p)return;
- ensureProjectEntityIds(p);populateChecklistFilters(p);
+ populateChecklistFilters(p);
  const q=$('fltSearch').value.trim().toLowerCase(),fB=$('fltBloc').value,fL=$('fltLoc').value,fM=$('fltMetier').value,fS=$('fltStatus').value;
  const cl=p.checklist||[];
  const filtered=cl.filter(c=>{
@@ -1946,13 +2025,28 @@ function renderChecklistPage(){
   if(fS){const visits=getCpVisits(c),latest=visits.reduce((a,v)=>!a||String(v.date||'').localeCompare(String(a.date||''))>=0?v:a,null);if(!latest||latest.status!==fS)return false}
   return true;
  });
- const scopes=getProjectTradeScopes(p),container=$('checklistContainer');
+ const scopes=getProjectTradeScopes(p,true),container=$('checklistContainer');
  if(!scopes.length){container.innerHTML=`<div class="empty-state">${t('noTradesInProject')}</div>`;return}
+ // Assign each filtered point to its matching scope once, rather than rescanning all points per scope.
+ const pointsByScope=new Map(),scopeIndex=new Map();
+ const addScopeIndex=(key,scope)=>{if(!scopeIndex.has(key))scopeIndex.set(key,[]);scopeIndex.get(key).push(scope)};
+ scopes.forEach(scope=>{
+  pointsByScope.set(scope,[]);
+  const locationId=scope.locationId||'';
+  addScopeIndex(JSON.stringify([scope.blocId,scope.type,'id:'+scope.tradeId,locationId]),scope);
+  addScopeIndex(JSON.stringify([scope.blocId,scope.type,'name:'+String(scope.name||''),locationId]),scope);
+ });
+ filtered.forEach(cp=>{
+  const detail=cp.blocId?null:detailForControlPoint(p,cp),blocId=cp.blocId||detail?.blocId||'',type=cp.metierType||'building';
+  const tradeKey=cp.metierId?'id:'+cp.metierId:'name:'+String(cp.metier||''),locationId=cp.locationId||(cp.location?'legacy:'+cp.location:'');
+  const key=JSON.stringify([blocId,type,tradeKey,locationId]);
+  (scopeIndex.get(key)||[]).forEach(scope=>pointsByScope.get(scope).push(cp));
+ });
  container.innerHTML=scopes.map(scope=>{
   if(fB&&scope.blocId!==fB)return '';
   if(fL&&scope.locationId!==fL)return '';
   if(fM&&scope.tradeId!==fM)return '';
-  const pts=filtered.filter(cp=>controlPointMatchesScope(p,cp,scope));
+  const pts=pointsByScope.get(scope)||[];
   if((q||fS)&&!pts.length)return '';
   const detail=scope.detail,key=scope.key,pct=tradeProgressValue(detail,key),expanded=tradeProgressIsExpanded(detail,key);
   const locationType=scope.type==='facade'?t('facadeScope'):t('floorScope');
@@ -1976,6 +2070,7 @@ function renderChecklistPage(){
   </div>`;
  }).join('')||`<div class="empty-state">${t('noFilterResults')}</div>`;
 }
+
 function renderControlPointCard(cp){
  const visits=getCpVisits(cp);
  return `<div class="cp-card" data-cp="${cp.id}"><div class="cp-head"><div style="flex:1"><div class="cp-name">${safe(cp.name)}</div><div class="cp-loc">${cp.bloc?`🧱 ${safe(cp.bloc)} · `:''}📍 ${safe(cp.location||'—')}</div></div><div class="cp-actions"><button class="secondary small" data-cp-act="desc">${t('descriptifBtn')}</button><button class="primary small" data-cp-act="visit">${t('addVisitBtn')}</button><button class="secondary small" data-cp-act="edit">${t('editBtn')}</button><button class="danger small" data-cp-act="del">${t('delBtn')}</button></div></div>${cp.description?`<div class="cp-desc"><span>${safe(cp.description)}</span><button class="danger small" data-cp-act="del-desc" style="padding:2px 6px">✕</button></div>`:''}
