@@ -2848,7 +2848,32 @@ async function importFile(file){
 }
 async function deleteActiveProject(){const p=activeProject();if(!p)return;if(!confirm(t('confirmDelProject').replace('{name}',p.name)))return;await remove(p.id);await loadProjects();activeId=projects[0]?.id||null;closeModal();if(activeId)renderActiveView();else showScreen('welcome');toast(t('projectDeleted'))}
 function startCreate(){formMode='create';editingId=null;$('formPageTitle').textContent=t('createProjectTitle');renderForm();showScreen('createPage')}
-$('newProjectBtn').onclick=startCreate;$('refreshBtn').onclick=()=>{if(!activeId&&projects.length)activeId=projects[0].id;if(activeId)renderActiveView();else showScreen('welcome')};$('exitBtn').onclick=()=>{if(!confirm(t('confirmExit')))return;window.close();setTimeout(()=>toast(t('exitBlocked')),250)};
+$('newProjectBtn').onclick=startCreate;$('refreshBtn').onclick=()=>{if(!activeId&&projects.length)activeId=projects[0].id;if(activeId)renderActiveView();else showScreen('welcome')};$('exitBtn').onclick = async () => {
+  if (!confirm(t('confirmExit'))) return;
+
+  const isNative = !!(
+    window.Capacitor &&
+    typeof window.Capacitor.isNativePlatform === 'function' &&
+    window.Capacitor.isNativePlatform()
+  );
+
+  if (!isNative) {
+    toast(t('exitBlocked'));
+    return;
+  }
+
+  try {
+    const bridge = await import('./printer-bridge.js');
+    await bridge.App.exitApp();
+  } catch (error) {
+    console.error('[BATI PILOT] Exit failed:', error);
+    toast(
+      currentLang === 'fr'
+        ? "Impossible de fermer l'application."
+        : "تعذر إغلاق التطبيق. يرجى المحاولة مجدداً."
+    );
+  }
+};
 $('modalClose').onclick=closeModal;$('modalOverlay').addEventListener('click',e=>{if(e.target===$('modalOverlay'))closeModal()});
 $('settingsBtn').onclick=openSettings;$('editProjectBtn').onclick=openEditModal;$('projectSelect').onchange=async e=>{await persistScratchpadState();activeId=e.target.value;renderActiveView()};
 $('changeImageBtn').onclick=()=>$('imageFileInput').click();$('imageFileInput').onchange=async e=>{const f=e.target.files[0],p=activeProject();if(!f||!p)return;try{p.image=await compressImage(f,800,.78);p.updatedAt=new Date().toISOString();await put(p);await loadProjects();renderActiveView();toast(t('imgUpdated'))}catch(err){toast(t('imageLoadErr'))}e.target.value=''};
