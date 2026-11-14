@@ -199,8 +199,18 @@ button:active{transform:translateY(0)}
 .action-box{background:white;border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px;box-shadow:var(--shadow)}
 
 .metier-box{background:white;border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:20px;box-shadow:var(--shadow)}
-.metier-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px}
-.metier-title{font-size:16px;font-weight:800;color:var(--navy);display:flex;align-items:center;gap:10px}
+.metier-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px}
+.metier-title{font-size:16px;font-weight:800;color:var(--navy);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.metier-scope-meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
+.metier-progress-panel{background:#f8fafc;border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;margin:0 0 16px}
+.metier-progress-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.metier-progress-label{font-size:13px;font-weight:800;color:var(--navy)}
+.metier-progress-actions{display:flex;align-items:center;gap:10px}
+.metier-progress-value{font-size:14px;color:var(--blue);min-width:42px;text-align:center}
+.metier-progress-controls{display:flex;align-items:center;gap:12px;margin-top:12px}
+.metier-progress-controls input[type=range]{flex:1;min-width:100px;accent-color:var(--blue);height:6px}
+.metier-progress-controls input[type=number]{width:76px;padding:8px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--text);font-weight:700;text-align:center}
+.metier-progress-toggle{white-space:nowrap}
 .badge{font-size:11px;padding:4px 10px;border-radius:20px;background:var(--blue2);color:var(--blue);font-weight:700}
 .badge.facade{background:#fef3c7;color:#d97706}
 
@@ -226,12 +236,6 @@ button:active{transform:translateY(0)}
 .dot-nonconforme .dot-light{background:var(--red);box-shadow:0 0 6px var(--red)}
 .dot-reserve{background:#fffbeb;color:var(--yellow);border:1px solid #fde68a}
 .dot-reserve .dot-light{background:var(--yellow);box-shadow:0 0 6px var(--yellow)}
-
-.progress-slider-row{display:flex;align-items:center;gap:12px;margin:14px 0;background:#f8fafc;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--line)}
-.progress-slider-row input[type=range]{flex:1;accent-color:var(--blue);height:6px}
-.lock-btn{width:34px;height:34px;padding:0;display:grid;place-items:center;border-radius:var(--radius-sm);font-size:14px}
-.lock-btn.unlocked{background:#ecfdf5;color:var(--green);border:1px solid #a7f3d0}
-.lock-btn.locked{background:#fef2f2;color:var(--red);border:1px solid #fecaca}
 
 .thumb-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .thumb-item{width:42px;height:42px;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--line);cursor:pointer;transition:transform .2s}
@@ -282,9 +286,9 @@ button:active{transform:translateY(0)}
 .chart-toolbar button.active{background:var(--blue);color:#fff}.chart-toolbar select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;max-width:100%}
 .chart-svg-wrap{width:100%;overflow-x:auto;min-height:280px}.chart-svg{display:block;width:100%;min-width:520px;height:auto;overflow:visible}.chart-svg text{font-family:inherit;fill:var(--muted);font-size:11px}.chart-svg .axis{stroke:#cbd5e1;stroke-width:1}.chart-svg .gridline{stroke:#e8edf3;stroke-width:1;stroke-dasharray:3 4}
 .chart-tooltip{font-size:12px;color:var(--navy);background:#eff6ff;border:1px solid #bfdbfe;padding:8px 12px;border-radius:8px;margin-top:8px;min-height:34px}
-.chart-analysis-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.chart-row{display:flex;align-items:center;gap:10px;margin:11px 0;font-size:12px}.chart-row-name{width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chart-row .bar{flex:1}.chart-table-wrap{overflow-x:auto}.chart-table{width:100%;border-collapse:collapse;font-size:12px;min-width:650px}.chart-table th,.chart-table td{padding:11px 10px;text-align:start;border-bottom:1px solid var(--line)}.chart-table th{background:#f8fafc;color:var(--navy)}.chart-mini{display:flex;align-items:center;gap:8px;min-width:130px}.chart-mini .bar{flex:1;height:7px}.chart-empty{padding:32px 14px;text-align:center;color:var(--muted);border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc}
+.chart-analysis-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.chart-row{display:flex;align-items:center;gap:10px;margin:11px 0;font-size:12px}.chart-row-name{flex:0 1 38%;width:auto;min-width:0;overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;line-height:1.35}.chart-row .bar{flex:1;align-self:center;min-width:50px}.chart-table-wrap{overflow-x:auto}.chart-table{width:100%;border-collapse:collapse;font-size:12px;min-width:650px}.chart-table th,.chart-table td{padding:11px 10px;text-align:start;border-bottom:1px solid var(--line)}.chart-table th{background:#f8fafc;color:var(--navy)}.chart-mini{display:flex;align-items:center;gap:8px;min-width:130px}.chart-mini .bar{flex:1;height:7px}.chart-empty{padding:32px 14px;text-align:center;color:var(--muted);border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc}
 @media(max-width:900px){.chart-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.chart-filter-grid{grid-template-columns:1fr 1fr;padding:12px}.chart-kpi{padding:13px}.chart-kpi .k-value{font-size:23px}.chart-panel{padding:13px}.chart-analysis-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.chart-filter-grid{grid-template-columns:1fr 1fr;padding:12px}.chart-kpi{padding:13px}.chart-kpi .k-value{font-size:23px}.chart-panel{padding:13px}.chart-analysis-grid{grid-template-columns:1fr}.metier-progress-controls{gap:8px}.metier-progress-controls input[type=number]{width:68px}}
 
 /* PV de visite chantier — styles additifs */
 .pv-page-actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -716,6 +720,7 @@ const I18N={
   showBtn:'عرض ▼',
   hideBtn:'إخفاء ▲',
   workProgress:'تقدم الأشغال:',
+  floorScope:'الطابق',facadeScope:'الواجهة',
   lockedTitle:'مغلق',
   unlockedTitle:'مفتوح',
   formProjectName:'اسم المشروع *',
@@ -887,6 +892,7 @@ const I18N={
   showBtn:'Afficher ▼',
   hideBtn:'Masquer ▲',
   workProgress:'Avancement :',
+  floorScope:'Étage',facadeScope:'Façade',
   lockedTitle:'Verrouillé',
   unlockedTitle:'Déverrouillé',
   formProjectName:'Nom du projet *',
@@ -1058,6 +1064,7 @@ const I18N={
   showBtn:'Show ▼',
   hideBtn:'Hide ▲',
   workProgress:'Progress:',
+  floorScope:'Floor',facadeScope:'Facade',
   lockedTitle:'Locked',
   unlockedTitle:'Unlocked',
   formProjectName:'Project Name *',
@@ -1463,6 +1470,67 @@ function scopedTradesFor(p,detail,type){
  const facade=type==='facade',names=facade?detail.facadeTrades:detail.buildingTrades,ids=facade?detail.facadeTradeIds:detail.buildingTradeIds;
  return names.map((name,i)=>({name,id:ids[i],type:facade?'facade':'building',detail}));
 }
+function ensureTradeProgressData(detail){
+ if(!detail)return;
+ if(!detail.tradeProgress||typeof detail.tradeProgress!=='object'||Array.isArray(detail.tradeProgress))detail.tradeProgress={};
+ if(!detail.tradeProgressExpanded||typeof detail.tradeProgressExpanded!=='object'||Array.isArray(detail.tradeProgressExpanded))detail.tradeProgressExpanded={};
+}
+function tradeProgressScopeKey(type,tradeId,locationId){
+ return JSON.stringify([type||'building',tradeId||'',locationId||'']);
+}
+function tradeProgressValue(detail,key){
+ ensureTradeProgressData(detail);
+ const value=Number(detail.tradeProgress[key]);
+ return Number.isFinite(value)?Math.max(0,Math.min(100,Math.round(value))):0;
+}
+function tradeProgressIsExpanded(detail,key){
+ ensureTradeProgressData(detail);
+ return detail.tradeProgressExpanded[key]!==false;
+}
+function getProjectTradeScopes(p){
+ ensureProjectEntityIds(p);
+ const scopes=[];
+ (p.blocDetails||[]).forEach(detail=>{
+  [...scopedTradesFor(p,detail,'building'),...scopedTradesFor(p,detail,'facade')].forEach(m=>{
+   const isFacade=m.type==='facade';
+   const names=isFacade?(detail.facades||[]):(detail.floors||[]);
+   const ids=isFacade?(detail.facadeIds||[]):(detail.floorIds||[]);
+   const matches=(p.checklist||[]).filter(cp=>{
+    const cpDetail=detailForControlPoint(p,cp);
+    if(cpDetail?.blocId!==detail.blocId||(cp.metierType||'building')!==m.type)return false;
+    return cp.metierId?cp.metierId===m.id:String(cp.metier||'')===m.name;
+   });
+   const locations=names.map((name,i)=>({id:ids[i]||'',name}));
+   matches.forEach(cp=>{
+    if(cp.locationId&&!locations.some(x=>x.id===cp.locationId))locations.push({id:cp.locationId,name:cp.location||'—'});
+    else if(!cp.locationId&&cp.location&&!locations.some(x=>x.name===cp.location))locations.push({id:'legacy:'+cp.location,name:cp.location});
+   });
+   if(!locations.length||matches.some(cp=>!cp.locationId&&!cp.location)){
+    if(!locations.some(x=>!x.id&&!x.name))locations.push({id:'',name:'—'});
+   }
+   locations.forEach(loc=>{
+    const locationId=loc.id||'',key=tradeProgressScopeKey(m.type,m.id,locationId);
+    scopes.push({
+     detail,tradeId:m.id,name:m.name,type:m.type,
+     bloc:detail.isMonobloc?'Monobloc':(detail.name||'—'),blocId:detail.blocId,
+     location:loc.name||'—',locationId,key,pct:tradeProgressValue(detail,key)
+    });
+   });
+  });
+ });
+ return scopes;
+}
+function controlPointMatchesScope(p,cp,scope){
+ const detail=detailForControlPoint(p,cp);
+ if((cp.blocId||detail?.blocId||'')!==scope.blocId)return false;
+ if((cp.metierType||'building')!==scope.type)return false;
+ const sameTrade=cp.metierId?cp.metierId===scope.tradeId:String(cp.metier||'')===scope.name;
+ if(!sameTrade)return false;
+ if(scope.locationId){
+  return cp.locationId?cp.locationId===scope.locationId:String(cp.location||'')===scope.location;
+ }
+ return !cp.locationId&&!cp.location;
+}
 
 function collectForm(old={}){
  const name=$('f_name').value.trim();if(!name){toast(t('enterProjectName'));$('f_name').focus();return null}
@@ -1533,34 +1601,20 @@ function getCpVisits(cp){
  cp.visits=cp.visit?[cp.visit]:[];
  return cp.visits;
 }
-function latestCpVisit(cp,visits=getCpVisits(cp)){
- const valid=Array.isArray(visits)?visits.filter(v=>v&&v.date):[];
- if(!valid.length)return null;
- return valid.reduce((latest,v)=>!latest||String(v.date).localeCompare(String(latest.date))>=0?v:latest,null);
-}
-function cpProgress(cp){
- const visits=getCpVisits(cp),latest=latestCpVisit(cp,visits);
- const value=latest&&latest.progress!==undefined&&latest.progress!==null&&latest.progress!==''
-  ? Number(latest.progress) : Number(cp&&cp.progress);
- return Number.isFinite(value)?Math.max(0,Math.min(100,value)):0;
-}
-
-function avgProgress(items){if(!items.length)return 0;return Math.round(items.reduce((s,c)=>s+(Number(c.progress)||0),0)/items.length)}
 function progressCard(item,pct){const label=typeof item==='object'?(item.label||'—'):item;return `<div class="subcard"><h4>${safe(label)}</h4><div class="subrow"><span>${t('progressRate')}</span><strong>${pct}%</strong></div><div class="bar"><span style="width:${pct}%"></span></div></div>`}
 function renderGroup(id,items,label,fn){$(id).innerHTML=items.length?items.map(it=>progressCard(it,fn(it))).join(''):`<div class="empty-state" style="grid-column:1/-1">${t('noDefinedItems')}</div>`}
 
 function renderDashboard(){
  const p=activeProject();if(!p)return;
  const cl=p.checklist||[];
- const b=p.blocks||[],f=p.floors||[],fa=p.facades||[],bt=p.buildingTrades||[],ft=p.facadeTrades||[];
- const ov=cl.length?Math.round(cl.reduce((a,c)=>a+cpProgress(c),0)/cl.length):0;
- const bList=cl.filter(c=>c.metierType==='building'),bPct=bList.length?Math.round(bList.reduce((a,c)=>a+cpProgress(c),0)/bList.length):0;
- const fList=cl.filter(c=>c.metierType==='facade'),fPct=fList.length?Math.round(fList.reduce((a,c)=>a+cpProgress(c),0)/fList.length):0;
+ const b=p.blocks||[],f=p.floors||[],fa=p.facades||[];
+ const scopes=getProjectTradeScopes(p);
+ const average=items=>items.length?Math.round(items.reduce((sum,x)=>sum+x.pct,0)/items.length):0;
+ const ov=average(scopes),buildingScopes=scopes.filter(x=>x.type==='building'),facadeScopes=scopes.filter(x=>x.type==='facade');
  $('overallValue').textContent=ov+'%';$('overallBar').style.width=ov+'%';
- $('buildingCount').textContent=bPct+'%';$('facadeCount').textContent=fPct+'%';
+ $('buildingCount').textContent=average(buildingScopes)+'%';$('facadeCount').textContent=average(facadeScopes)+'%';
  $('elementsCount').textContent=b.length+f.length+fa.length;
- // Compter le dernier statut enregistré pour chaque point de contrôle.
- // Les visites sont stockées dans cp.visits (ancien format cp.visit migré par getCpVisits).
+ // Les statuts de conformité restent fondés sur les visites; seuls les taux d'avancement sont désormais saisis par Métier et emplacement.
  const complianceCounts={conforme:0,nonconforme:0,reserve:0};
  cl.forEach(cp=>{
   const visits=getCpVisits(cp);
@@ -1571,40 +1625,56 @@ function renderDashboard(){
  $('conformeCount').textContent=complianceCounts.conforme;
  $('nonconformeCount').textContent=complianceCounts.nonconforme;
  $('reserveCount').textContent=complianceCounts.reserve;
- const dashboardGroups=(selector,labelFn)=>{const map=new Map();cl.forEach(cp=>{const parts=selector(cp);if(!parts)return;const key=JSON.stringify(parts);if(!map.has(key))map.set(key,{label:labelFn(cp,parts),points:[]});map.get(key).points.push(cp)});return [...map.values()]};
- const tradeGroups=dashboardGroups(cp=>cp.metier?[cp.blocId||cp.bloc||'',cp.metierId||cp.metierType||'building',cp.metier]:null,(cp,a)=>[blocDisplayLabel(p,(p.blocDetails||[]).find(d=>d.blocId===cp.blocId)||{}),a[1]==='facade'?t('tradeFacade'):t('tradeBuilding'),a[2]].join(' | '));
- const floorGroups=dashboardGroups(cp=>cp.location&&(cp.metierType||'building')!=='facade'?[cp.blocId||cp.bloc||'',cp.locationId||cp.location]:null,(cp,a)=>[blocDisplayLabel(p,(p.blocDetails||[]).find(d=>d.blocId===cp.blocId)||{}),cp.location].join(' | '));
- const facadeGroups=dashboardGroups(cp=>cp.location&&(cp.metierType||'building')==='facade'?[cp.blocId||cp.bloc||'',cp.locationId||cp.location]:null,(cp,a)=>[blocDisplayLabel(p,(p.blocDetails||[]).find(d=>d.blocId===cp.blocId)||{}),cp.location].join(' | '));
- const groupPct=g=>g.points.length?Math.round(g.points.reduce((sum,cp)=>sum+cpProgress(cp),0)/g.points.length):0;
- renderGroup('tradeProgress',tradeGroups,'métiers',groupPct);
- renderGroup('blockProgress',(p.blocDetails||[]).filter(d=>!d.isMonobloc).map(d=>({label:blocDisplayLabel(p,d),blocId:d.blocId})), 'blocs',bl=>{const a=cl.filter(c=>c.blocId?c.blocId===bl.blocId:c.bloc===bl.label);return a.length?Math.round(a.reduce((x,c)=>x+cpProgress(c),0)/a.length):0});
- renderGroup('floorProgress',floorGroups,'étages',groupPct);
- renderGroup('facadeProgress',facadeGroups,'façades',groupPct);
+ const tradeGroups=scopes.map(s=>({
+  label:[blocDisplayLabel(p,s.detail),s.type==='facade'?t('tradeFacade'):t('tradeBuilding'),s.location,s.name].join(' | '),
+  progress:s.pct
+ }));
+ renderGroup('tradeProgress',tradeGroups,'métiers',x=>x.progress);
+ const blockGroups=(p.blocDetails||[]).filter(d=>!d.isMonobloc).map(d=>({
+  label:blocDisplayLabel(p,d),blocId:d.blocId
+ }));
+ renderGroup('blockProgress',blockGroups,'blocs',d=>average(scopes.filter(s=>s.blocId===d.blocId)));
+ const locationGroups=(source,type)=>{
+  const map=new Map();
+  source.filter(s=>s.type===type).forEach(s=>{
+   const key=JSON.stringify([s.blocId,s.locationId||s.location]);
+   if(!map.has(key))map.set(key,{label:[blocDisplayLabel(p,s.detail),s.location].join(' | '),items:[]});
+   map.get(key).items.push(s);
+  });
+  return [...map.values()];
+ };
+ const floorGroups=locationGroups(scopes,'building').map(g=>({label:g.label,items:g.items}));
+ const facadeGroups=locationGroups(scopes,'facade').map(g=>({label:g.label,items:g.items}));
+ renderGroup('floorProgress',floorGroups,'étages',g=>average(g.items));
+ renderGroup('facadeProgress',facadeGroups,'façades',g=>average(g.items));
 }
-
 /* ================= COURBES D'AVANCEMENT (lecture seule) ================= */
 let chartMode='bar',chartSortAsc=true;
 function chartGroupKey(cp){
- // JSON tuple encoding avoids collisions from separators and keeps legacy records readable.
+ // One chart group per Métier and its exact floor/façade scope.
  return JSON.stringify([cp.blocId||cp.bloc||'',cp.metierId||cp.metierType||'building',cp.locationId||cp.location||'',cp.metier||'—']);
 }
 function chartLocationKey(cp){return JSON.stringify([cp.blocId||cp.bloc||'',cp.metierType||'building',cp.locationId||cp.location||''])}
 function chartGroupLabel(g){return [g.bloc||'—',g.type==='facade'?ct('facade'):ct('building'),g.location||'—',g.name||'—'].join(' | ')}
+function chartCpFromScope(scope){
+ return {
+  metier:scope.name,metierType:scope.type,metierId:scope.tradeId,
+  bloc:scope.detail.isMonobloc?'':scope.detail.name,blocId:scope.blocId,
+  location:scope.location==='—'?'':scope.location,locationId:scope.locationId
+ };
+}
 function chartData(p,dateRange=null){
- const groups=new Map();
- (p.checklist||[]).forEach(cp=>{
-  const visits=Array.isArray(cp.visits)?cp.visits:(cp.visit?[cp.visit]:[]);
-  const periodScoped=!!(dateRange&&(dateRange.start||dateRange.end));
-  const valid=visits.filter(v=>v&&v.progress!==null&&v.progress!==undefined&&v.progress!==''&&Number.isFinite(Number(v.progress))&&(!periodScoped||reportInPeriod(v.date,dateRange)));
-  // Preserve the application's existing progress rule and count each control point once.
-  if(periodScoped&&!valid.length)return;
-  const cpPct=periodScoped?Math.max(0,Math.min(100,Number(latestCpVisit(cp,valid)?.progress)||0)):cpProgress(cp);
-  const type=cp.metierType||'building',name=cp.metier||'—',bloc=cp.bloc||'',location=cp.location||'',key=chartGroupKey(cp),blocId=cp.blocId||bloc,tradeId=cp.metierId||'';
-  if(!groups.has(key))groups.set(key,{key,name,type,bloc,blocId,tradeId,location,points:[],blocks:new Set(),locs:new Set(),history:[]});
-  const g=groups.get(key);g.points.push({cp,pct:cpPct});if(bloc)g.blocks.add(bloc);if(location)g.locs.add(location);
-  valid.forEach(v=>{if(v.date)g.history.push({date:v.date,pct:Number(v.progress),visitId:v.id||''})});
+ // Progress is a current manual value for each Métier/location pair; visit dates no longer affect it.
+ return getProjectTradeScopes(p).map(scope=>{
+  const cp=chartCpFromScope(scope),key=chartGroupKey(cp);
+  return {
+   key,name:scope.name,type:scope.type,bloc:scope.bloc,blocId:scope.blocId,
+   tradeId:scope.tradeId,location:scope.location==='—'?'':scope.location,
+   locationId:scope.locationId,points:[{cp,pct:scope.pct}],
+   blocks:new Set(scope.bloc?[scope.bloc]:[]),locs:new Set(scope.location&&scope.location!=='—'?[scope.location]:[]),
+   history:[{date:ct('progress'),pct:scope.pct,visitId:''}],pct:scope.pct
+  };
  });
- return [...groups.values()].map(g=>({...g,pct:Math.round(g.points.reduce((a,x)=>a+x.pct,0)/g.points.length)}));
 }
 function chartFiltered(){
  const p=activeProject();if(!p)return [];
@@ -1612,18 +1682,18 @@ function chartFiltered(){
  return chartData(p).map(g=>({...g,points:g.points.filter(x=>(!b||(x.cp.blocId||x.cp.bloc||'')===b)&&(!l||chartLocationKey(x.cp)===l))}))
   .filter(g=>(!ty||g.type===ty)&&(!m||(g.tradeId?g.tradeId===m:g.type+'::'+g.name===m)))
   .map(g=>({...g,pct:g.points.length?Math.round(g.points.reduce((a,x)=>a+x.pct,0)/g.points.length):null,
-   history:g.points.flatMap(x=>(Array.isArray(x.cp.visits)?x.cp.visits:(x.cp.visit?[x.cp.visit]:[])).filter(v=>v&&v.date&&v.progress!==null&&v.progress!==undefined&&v.progress!==''&&Number.isFinite(Number(v.progress))).map(v=>({date:v.date,pct:Number(v.progress),visitId:v.id||''})))}))
+   history:g.points.map(x=>({date:ct('progress'),pct:x.pct,visitId:''}))}))
   .filter(g=>g.pct!==null);
 }
 function chartEsc(v){return safe(String(v??''))}
 function fillChartFilters(p){
  ensureProjectEntityIds(p);
  const set=(id,items,first)=>{const el=$(id),old=el.value;el.innerHTML=`<option value="">${first}</option>`+items.map(x=>`<option value="${chartEsc(x.value)}">${chartEsc(x.label)}</option>`).join('');if(items.some(o=>o.value===old))el.value=old};
- const details=p.blocDetails||[];
+ const details=p.blocDetails||[],scopes=getProjectTradeScopes(p);
  set('chBloc',details.map(d=>({value:d.blocId,label:blocDisplayLabel(p,d)})),ct('allBlocks'));
- const locs=new Map();(p.checklist||[]).forEach(cp=>{if(!cp.location)return;const key=chartLocationKey(cp);if(!locs.has(key)){const type=cp.metierType||'building';locs.set(key,{value:key,label:[cp.bloc||'—',type==='facade'?ct('facade'):ct('building'),cp.location].join(' | ')})}});
+ const locs=new Map();scopes.forEach(scope=>{const cp=chartCpFromScope(scope),key=chartLocationKey(cp);if(!locs.has(key))locs.set(key,{value:key,label:[scope.bloc||'—',scope.type==='facade'?ct('facade'):ct('building'),scope.location||'—'].join(' | ')})});
  set('chLoc',[...locs.values()],ct('allLocs'));
- const tradeGroups=new Map();(p.checklist||[]).forEach(cp=>{const type=cp.metierType||'building',name=cp.metier||'',id=cp.metierId||type+'::'+name;if(name&&!tradeGroups.has(id))tradeGroups.set(id,{value:id,label:name+' · '+(type==='facade'?ct('facade'):ct('building'))+' · '+(cp.bloc||'Monobloc')})});
+ const tradeGroups=new Map();scopes.forEach(scope=>{const id=scope.tradeId||scope.type+'::'+scope.name;if(scope.name&&!tradeGroups.has(id))tradeGroups.set(id,{value:id,label:scope.name+' · '+(scope.type==='facade'?ct('facade'):ct('building'))+' · '+scope.bloc})});
  set('chMetier',[...tradeGroups.values()],ct('allTrades'));
  const ty=$('chType'),old=ty.value;ty.innerHTML=`<option value="">${ct('allTypes')}</option><option value="building">${ct('building')}</option><option value="facade">${ct('facade')}</option>`;ty.value=old;
 }
@@ -1641,11 +1711,11 @@ function drawBar(groups){
  $('chartGraphic').innerHTML=`<svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img">${a.join('')}</svg>`;chartBindTips();
 }
 function drawTimeline(g,area=false){
- if(!g){chartEmpty(ct('noTrade'));return}const pts=[...g.history].sort((a,b)=>a.date.localeCompare(b.date));if(pts.length<2){chartEmpty(ct('noHistory'));return}
+ if(!g){chartEmpty(ct('noTrade'));return}const pts=[...g.history].sort((a,b)=>a.date.localeCompare(b.date));if(!pts.length){chartEmpty(ct('empty'));return}
  const W=Math.max(560,pts.length*85+80),H=300,L=52,R=24,T=22,B=48,iw=W-L-R,ih=H-T-B,x=i=>L+(pts.length===1?iw/2:i*iw/(pts.length-1)),y=v=>T+ih-(v/100)*ih;
  let a=[];for(let n=0;n<=100;n+=20){a.push(`<line class="gridline" x1="${L}" y1="${y(n)}" x2="${W-R}" y2="${y(n)}"/>`+svgText(L-9,y(n)+4,n+'%','end'))}
- const d=pts.map((p,i)=>(i?'L':'M')+x(i)+','+y(p.pct)).join(' ');if(area)a.push(`<path d="${d} L${x(pts.length-1)},${y(0)} L${x(0)},${y(0)} Z" fill="#bfdbfe" opacity=".7"/>`);a.push(`<path d="${d}" fill="none" stroke="#1d5fa8" stroke-width="3" stroke-linejoin="round"/>`);
- pts.forEach((p,i)=>{a.push(`<circle cx="${x(i)}" cy="${y(p.pct)}" r="5" fill="#1d5fa8" data-tip="${chartEsc(p.date)} · ${p.pct}%"/>`);a.push(svgText(x(i),H-15,p.date))});
+ const d=pts.map((p,i)=>(i?'L':'M')+x(i)+','+y(p.pct)).join(' ');if(area&&pts.length>1)a.push(`<path d="${d} L${x(pts.length-1)},${y(0)} L${x(0)},${y(0)} Z" fill="#bfdbfe" opacity=".7"/>`);a.push(`<path d="${d}" fill="none" stroke="#1d5fa8" stroke-width="3" stroke-linejoin="round"/>`);
+ pts.forEach((p,i)=>{a.push(`<circle cx="${x(i)}" cy="${y(p.pct)}" r="6" fill="#1d5fa8" data-tip="${chartEsc(p.date)} · ${p.pct}%"/>`);a.push(svgText(x(i),H-15,p.date))});
  $('chartGraphic').innerHTML=`<svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img">${a.join('')}</svg>`;chartBindTips();
 }
 function drawDonut(g){if(!g){chartEmpty(ct('noTrade'));return}const pct=g.pct,rem=100-pct,c=2*Math.PI*78,offset=c*(1-pct/100);$('chartGraphic').innerHTML=`<div style="display:flex;align-items:center;justify-content:center;gap:28px;flex-wrap:wrap;min-height:260px"><svg viewBox="0 0 220 220" width="220" height="220"><circle cx="110" cy="110" r="78" fill="none" stroke="#e8edf3" stroke-width="27"/><circle cx="110" cy="110" r="78" fill="none" stroke="#1d5fa8" stroke-width="27" stroke-dasharray="${c}" stroke-dashoffset="${offset}" transform="rotate(-90 110 110)"/><text x="110" y="105" text-anchor="middle" style="font-size:27px;font-weight:900;fill:#0f1d2d">${pct}%</text><text x="110" y="128" text-anchor="middle">${chartEsc(chartGroupLabel(g))}</text></svg><div><p>🔵 ${ct('done')}: <b>${pct}%</b></p><p>⚪ ${ct('left')}: <b>${rem}%</b></p></div></div>`;$('chartTooltip').textContent=`${g.name}: ${pct}% / ${rem}%`}
@@ -1692,7 +1762,7 @@ async function exportChartsPDF(){
  win.addEventListener('afterprint',cleanup,{once:true});
  doc.open();
  const printHtml = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${chartEsc(reportTitle)}</title><style>
- @page{size:A4 ${landscape?'landscape':'portrait'};margin:13mm}*{box-sizing:border-box}body{font-family:Arial,"Segoe UI",sans-serif;color:#1b2a3a;margin:0;font-size:10pt;line-height:1.45}header{border-bottom:3px solid #1d5fa8;padding-bottom:12px;margin-bottom:16px}h1{font-size:18pt;color:#0f1d2d;margin:0 0 5px}h2{font-size:12pt;color:#0f1d2d;margin:18px 0 9px}.meta{color:#64748b;font-size:9pt}.project{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}.project div,.filter,.kpi{border:1px solid #dbe4ef;border-radius:6px;padding:8px;background:#f8fafc}.project b,.filter b{display:block;color:#64748b;font-size:8pt;margin-bottom:3px}.filters{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.filter span{font-size:9pt}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kpi small{display:block;color:#64748b}.kpi strong{display:block;font-size:17pt;color:#1d5fa8;margin-top:4px}.chart{border:1px solid #dbe4ef;border-radius:8px;padding:12px;min-height:180px;overflow:visible}.chart svg{display:block;width:100%;height:auto;max-height:500px;overflow:visible}.chart svg text{font-family:Arial,sans-serif}.chart table{width:100%}.analysis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.analysis h3{font-size:10pt;margin:5px 0}.analysis .chart-row{display:flex;gap:8px;align-items:center;margin:7px 0;font-size:9pt}.analysis .chart-row-name{width:115px;overflow-wrap:anywhere}.analysis .bar{height:8px;background:#e9edf3;flex:1;border-radius:8px;overflow:hidden}.analysis .bar span{display:block;height:100%;background:#1d5fa8}.chart-table{width:100%;border-collapse:collapse;font-size:9pt}.chart-table th,.chart-table td{border-bottom:1px solid #dbe4ef;padding:7px;text-align:left}.chart-table th{background:#f1f5f9;color:#0f1d2d}.chart-mini{display:flex;align-items:center;gap:7px}.chart-mini .bar{min-width:70px}.chart-empty{padding:20px;text-align:center;color:#64748b}.footer{border-top:1px solid #dbe4ef;margin-top:18px;padding-top:7px;color:#64748b;font-size:8pt;display:flex;justify-content:space-between}.no-print{display:none}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.chart-panel,.kpi,.filter,.project div{break-inside:avoid}.chart-table tr{break-inside:avoid}h2{break-after:avoid}}
+ @page{size:A4 ${landscape?'landscape':'portrait'};margin:13mm}*{box-sizing:border-box}body{font-family:Arial,"Segoe UI",sans-serif;color:#1b2a3a;margin:0;font-size:10pt;line-height:1.45}header{border-bottom:3px solid #1d5fa8;padding-bottom:12px;margin-bottom:16px}h1{font-size:18pt;color:#0f1d2d;margin:0 0 5px}h2{font-size:12pt;color:#0f1d2d;margin:18px 0 9px}.meta{color:#64748b;font-size:9pt}.project{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}.project div,.filter,.kpi{border:1px solid #dbe4ef;border-radius:6px;padding:8px;background:#f8fafc}.project b,.filter b{display:block;color:#64748b;font-size:8pt;margin-bottom:3px}.filters{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.filter span{font-size:9pt}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kpi small{display:block;color:#64748b}.kpi strong{display:block;font-size:17pt;color:#1d5fa8;margin-top:4px}.chart{border:1px solid #dbe4ef;border-radius:8px;padding:12px;min-height:180px;overflow:visible}.chart svg{display:block;width:100%;height:auto;max-height:500px;overflow:visible}.chart svg text{font-family:Arial,sans-serif}.chart table{width:100%}.analysis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.analysis h3{font-size:10pt;margin:5px 0}.analysis .chart-row{display:flex;gap:8px;align-items:center;margin:7px 0;font-size:9pt}.analysis .chart-row-name{width:115px;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}.analysis .bar{height:8px;background:#e9edf3;flex:1;border-radius:8px;overflow:hidden}.analysis .bar span{display:block;height:100%;background:#1d5fa8}.chart-table{width:100%;border-collapse:collapse;font-size:9pt}.chart-table th,.chart-table td{border-bottom:1px solid #dbe4ef;padding:7px;text-align:left}.chart-table th{background:#f1f5f9;color:#0f1d2d}.chart-mini{display:flex;align-items:center;gap:7px}.chart-mini .bar{min-width:70px}.chart-empty{padding:20px;text-align:center;color:#64748b}.footer{border-top:1px solid #dbe4ef;margin-top:18px;padding-top:7px;color:#64748b;font-size:8pt;display:flex;justify-content:space-between}.no-print{display:none}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.chart-panel,.kpi,.filter,.project div{break-inside:avoid}.chart-table tr{break-inside:avoid}h2{break-after:avoid}}
  </style></head><body dir="${document.documentElement.dir||'ltr'}">
  <header><h1>${chartEsc(reportTitle)}</h1><div class="meta">Date d’extraction : ${chartEsc(now)} · Graphique : ${chartEsc(modeNames[chartMode]||chartMode)}</div>
  <div class="project"><div><b>Projet</b>${chartEsc(p.name||'—')}</div><div><b>Code</b>${chartEsc(p.code||'—')}</div><div><b>Entreprise</b>${chartEsc(p.company||'—')}</div><div><b>Maître d’ouvrage</b>${chartEsc(p.owner||'—')}</div><div><b>Ingénieur de suivi</b>${chartEsc(p.followEngineer||'—')}</div><div><b>Ingénieur d’étude</b>${chartEsc(p.studyEngineer||'—')}</div></div></header>
@@ -1765,21 +1835,40 @@ function renderChecklistPage(){
   if(fS){const visits=getCpVisits(c),latest=visits.reduce((a,v)=>!a||String(v.date||'').localeCompare(String(a.date||''))>=0?v:a,null);if(!latest||latest.status!==fS)return false}
   return true;
  });
- const details=p.blocDetails||[],allMetiers=details.flatMap(b=>[...scopedTradesFor(p,b,'building'),...scopedTradesFor(p,b,'facade')]);
- const container=$('checklistContainer');
- if(!allMetiers.length){container.innerHTML=`<div class="empty-state">${t('noTradesInProject')}</div>`;return}
- container.innerHTML=allMetiers.map(m=>{
-  const belongs=c=>c.metierId?c.metierId===m.id:(c.metier===m.name&&c.metierType===m.type&&detailForControlPoint(p,c)?.blocId===m.detail.blocId);
-  const pts=filtered.filter(belongs),metierPct=pts.length?Math.round(pts.reduce((a,c)=>a+cpProgress(c),0)/pts.length):0;
-  if((q||fB||fL||fM||fS)&&!pts.length)return '';
-  return `<div class="metier-box"><div class="metier-head"><div><div class="metier-title">${safe(m.name)} <span class="badge ${m.type==='facade'?'facade':''}">${m.type==='facade'?t('tradeFacade'):t('tradeBuilding')}</span> <span class="muted">${safe(m.detail.name||'Monobloc')}</span></div><div class="bar" style="margin-top:8px;max-width:260px"><span style="width:${metierPct}%"></span></div></div><span class="muted">${metierPct}% · ${pts.length} ${t('controlPointCount')}</span></div>${pts.length?pts.map(cp=>renderControlPointCard(cp)).join(''):`<div class="empty-state">${t('noCpForTrade')}</div>`}</div>`;
+ const scopes=getProjectTradeScopes(p),container=$('checklistContainer');
+ if(!scopes.length){container.innerHTML=`<div class="empty-state">${t('noTradesInProject')}</div>`;return}
+ container.innerHTML=scopes.map(scope=>{
+  if(fB&&scope.blocId!==fB)return '';
+  if(fL&&scope.locationId!==fL)return '';
+  if(fM&&scope.tradeId!==fM)return '';
+  const pts=filtered.filter(cp=>controlPointMatchesScope(p,cp,scope));
+  if((q||fS)&&!pts.length)return '';
+  const detail=scope.detail,key=scope.key,pct=tradeProgressValue(detail,key),expanded=tradeProgressIsExpanded(detail,key);
+  const locationType=scope.type==='facade'?t('facadeScope'):t('floorScope');
+  return `<div class="metier-box" data-bloc-id="${safe(scope.blocId)}" data-progress-key="${safe(key)}">
+   <div class="metier-head"><div>
+    <div class="metier-title">${safe(scope.name)} <span class="badge ${scope.type==='facade'?'facade':''}">${scope.type==='facade'?t('tradeFacade'):t('tradeBuilding')}</span></div>
+    <div class="metier-scope-meta">${safe(blocDisplayLabel(p,detail))} · ${safe(locationType)} : ${safe(scope.location)}</div>
+   </div><span class="muted">${pts.length} ${t('controlPointCount')}</span></div>
+   <div class="metier-progress-panel" data-progress-panel="${safe(key)}">
+    <div class="metier-progress-top"><span class="metier-progress-label">${t('workProgress')}</span>
+     <div class="metier-progress-actions"><strong class="metier-progress-value">${pct}%</strong>
+      <button class="secondary small metier-progress-toggle" data-trade-progress-act="toggle" data-bloc-id="${safe(scope.blocId)}" data-progress-key="${safe(key)}">${expanded?t('hideBtn'):t('showBtn')}</button>
+     </div>
+    </div>
+    <div class="metier-progress-controls ${expanded?'':'hidden'}" data-progress-controls="${safe(key)}">
+     <input type="range" min="0" max="100" step="1" value="${pct}" data-trade-progress-input="range" data-bloc-id="${safe(scope.blocId)}" data-progress-key="${safe(key)}" aria-label="${safe(scope.name)} ${safe(locationType)}">
+     <input type="number" min="0" max="100" step="1" value="${pct}" data-trade-progress-input="number" data-bloc-id="${safe(scope.blocId)}" data-progress-key="${safe(key)}" aria-label="${t('progressRate')}">
+    </div>
+   </div>
+   ${pts.length?pts.map(cp=>renderControlPointCard(cp)).join(''):`<div class="empty-state">${t('noCpForTrade')}</div>`}
+  </div>`;
  }).join('')||`<div class="empty-state">${t('noFilterResults')}</div>`;
 }
-
 function renderControlPointCard(cp){
- const visits=getCpVisits(cp),pct=cpProgress(cp);
- return `<div class="cp-card" data-cp="${cp.id}"><div class="cp-head"><div style="flex:1"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="cp-name">${safe(cp.name)}</div><span class="badge">${pct}%</span></div><div class="bar" style="margin-top:7px;max-width:260px"><span style="width:${pct}%"></span></div><div class="cp-loc">${cp.bloc?`🧱 ${safe(cp.bloc)} · `:''}📍 ${safe(cp.location||'—')}</div></div><div class="cp-actions"><button class="secondary small" data-cp-act="desc">${t('descriptifBtn')}</button><button class="primary small" data-cp-act="visit">${t('addVisitBtn')}</button><button class="secondary small" data-cp-act="edit">${t('editBtn')}</button><button class="danger small" data-cp-act="del">${t('delBtn')}</button></div></div>${cp.description?`<div class="cp-desc"><span>${safe(cp.description)}</span><button class="danger small" data-cp-act="del-desc" style="padding:2px 6px">✕</button></div>`:''}
- ${visits.map(v=>{const key=activeId+'_'+cp.id+'_'+v.id,expanded=expandedVisits.has(key),statuses={conforme:[t('statusConforme'),'dot-conforme'],nonconforme:[t('statusNonConforme'),'dot-nonconforme'],reserve:[t('statusReserve'),'dot-reserve']},st=statuses[v.status],locked=v.locked!==false,vp=Number(v.progress)||0;return `<div class="visit-bar" data-visit-id="${v.id}"><span class="visit-date">📅 ${safe(v.date||'—')} <strong style="margin-inline-start:8px">${vp}%</strong></span><div class="visit-actions"><button class="secondary visit-action-btn" data-cp-act="toggle-visit">${expanded?t('hideBtn'):t('showBtn')}</button><button class="secondary visit-action-btn" data-cp-act="edit-visit">${t('editBtn')}</button><button class="danger visit-action-btn" data-cp-act="del-visit">${t('delBtn')}</button></div></div><div class="visit-details ${expanded?'':'hidden'}" data-visit-id="${v.id}"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">${st?`<span class="status-dot ${st[1]}"><span class="dot-light"></span>${st[0]}</span>`:''}</div><div style="font-size:13px;color:var(--text);margin-bottom:12px;line-height:1.6">${safe(v.remark||'')}</div><div style="margin-bottom:8px;font-weight:700;font-size:13px;color:var(--navy)">${t('workProgress')}</div><div class="progress-slider-row"><input type="range" min="0" max="100" value="${vp}" ${locked?'disabled':''} data-cp-act="slider" data-visit-id="${v.id}"><strong style="min-width:40px;text-align:center">${vp}%</strong><button class="lock-btn ${locked?'locked':'unlocked'}" data-cp-act="toggle-lock" data-visit-id="${v.id}" title="${locked?t('lockedTitle'):t('unlockedTitle')}">${locked?'🔒':'🔓'}</button></div>${v.images?.length?`<div class="thumb-grid">${v.images.map((img,idx)=>`<div class="thumb-item" data-cp-act="view-img" data-visit-id="${v.id}" data-img-idx="${idx}"><img src="${img}" loading="lazy" decoding="async"></div>`).join('')}</div>`:''}</div>`}).join('')}</div>`;
+ const visits=getCpVisits(cp);
+ return `<div class="cp-card" data-cp="${cp.id}"><div class="cp-head"><div style="flex:1"><div class="cp-name">${safe(cp.name)}</div><div class="cp-loc">${cp.bloc?`🧱 ${safe(cp.bloc)} · `:''}📍 ${safe(cp.location||'—')}</div></div><div class="cp-actions"><button class="secondary small" data-cp-act="desc">${t('descriptifBtn')}</button><button class="primary small" data-cp-act="visit">${t('addVisitBtn')}</button><button class="secondary small" data-cp-act="edit">${t('editBtn')}</button><button class="danger small" data-cp-act="del">${t('delBtn')}</button></div></div>${cp.description?`<div class="cp-desc"><span>${safe(cp.description)}</span><button class="danger small" data-cp-act="del-desc" style="padding:2px 6px">✕</button></div>`:''}
+ ${visits.map(v=>{const key=activeId+'_'+cp.id+'_'+v.id,expanded=expandedVisits.has(key),statuses={conforme:[t('statusConforme'),'dot-conforme'],nonconforme:[t('statusNonConforme'),'dot-nonconforme'],reserve:[t('statusReserve'),'dot-reserve']},st=statuses[v.status];return `<div class="visit-bar" data-visit-id="${v.id}"><span class="visit-date">📅 ${safe(v.date||'—')}</span><div class="visit-actions"><button class="secondary visit-action-btn" data-cp-act="toggle-visit">${expanded?t('hideBtn'):t('showBtn')}</button><button class="secondary visit-action-btn" data-cp-act="edit-visit">${t('editBtn')}</button><button class="danger visit-action-btn" data-cp-act="del-visit">${t('delBtn')}</button></div></div><div class="visit-details ${expanded?'':'hidden'}" data-visit-id="${v.id}"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">${st?`<span class="status-dot ${st[1]}"><span class="dot-light"></span>${st[0]}</span>`:''}</div><div style="font-size:13px;color:var(--text);margin-bottom:12px;line-height:1.6">${safe(v.remark||'')}</div>${v.images?.length?`<div class="thumb-grid">${v.images.map((img,idx)=>`<div class="thumb-item" data-cp-act="view-img" data-visit-id="${v.id}" data-img-idx="${idx}"><img src="${img}" loading="lazy" decoding="async"></div>`).join('')}</div>`:''}</div>`}).join('')}</div>`;
 }
 
 async function saveProjectChecklist(p){
@@ -1812,6 +1901,17 @@ async function clearChecklistData(){
 $('clearChecklistDataBtn').addEventListener('click',clearChecklistData);
 
 $('checklistContainer').addEventListener('click',async e=>{
+ const progressToggle=e.target.closest('[data-trade-progress-act="toggle"]');
+ if(progressToggle){
+  const p=activeProject();if(!p)return;
+  const detail=(p.blocDetails||[]).find(x=>x.blocId===progressToggle.dataset.blocId),key=progressToggle.dataset.progressKey;
+  if(!detail)return;
+  ensureTradeProgressData(detail);
+  detail.tradeProgressExpanded[key]=!tradeProgressIsExpanded(detail,key);
+  p.updatedAt=new Date().toISOString();
+  try{await put(p);renderChecklistPage()}catch(err){console.error('Métier progress panel state save failed:',err);toast(t('dbSaveErr'))}
+  return;
+ }
  const btn=e.target.closest('[data-cp-act]');if(!btn)return;
  const card=btn.closest('[data-cp]');if(!card)return;
  const p=activeProject(), cp=(p.checklist||[]).find(x=>x.id===card.dataset.cp);
@@ -1841,36 +1941,53 @@ $('checklistContainer').addEventListener('click',async e=>{
   if(expandedVisits.has(key))expandedVisits.delete(key);else expandedVisits.add(key);renderChecklistPage();
  }else if(act==='del-visit'){
   if(!confirm(t('confirmDelVisit')))return;const vid=btn.closest('[data-visit-id]')?.dataset.visitId;cp.visits=getCpVisits(cp).filter(v=>v.id!==vid);expandedVisits.delete(activeId+'_'+cp.id+'_'+vid);await saveProjectChecklist(p);toast(t('visitDeleted'));
- }else if(act==='toggle-lock'){
-  const v=getCpVisits(cp).find(x=>x.id===btn.dataset.visitId);if(v){v.locked=v.locked===false;await saveProjectChecklist(p)}
  }else if(act==='view-img'){
   openLightbox(p,cp,Number(btn.dataset.imgIdx),btn.dataset.visitId);
  }
 });
 
-$('checklistContainer').addEventListener('input',async e=>{
- if(e.target.dataset.cpAct==='slider'){
-  const card=e.target.closest('[data-cp]'), p=activeProject(), cp=(p.checklist||[]).find(x=>x.id===card.dataset.cp);if(!cp)return;
-  const v=getCpVisits(cp).find(x=>x.id===e.target.dataset.visitId);if(!v)return;v.progress=Number(e.target.value);
-  e.target.parentElement.querySelector('strong').textContent=v.progress+'%';const bar=card.querySelector(`[data-visit-id="${v.id}"].visit-bar strong`);if(bar)bar.textContent=v.progress+'%';
-  const pct=cpProgress(cp),badge=card.querySelector('.cp-head .badge'),cpbar=card.querySelector('.cp-head .bar span');if(badge)badge.textContent=pct+'%';if(cpbar)cpbar.style.width=pct+'%';
-  const box=card.closest('.metier-box'),tradePts=(p.checklist||[]).filter(x=>cp.metierId?x.metierId===cp.metierId:(x.metier===cp.metier&&x.metierType===cp.metierType&&detailForControlPoint(p,x)?.blocId===detailForControlPoint(p,cp)?.blocId)).filter(x=>{
-    const q=$('fltSearch').value.trim().toLowerCase(),loc=$('fltLoc').value,trade=$('fltMetier').value,status=$('fltStatus').value;
-    if(q&&!String(x.name||'').toLowerCase().includes(q)&&!String(x.description||'').toLowerCase().includes(q))return false;
-    if(loc&&x.locationId!==loc)return false;if(trade&&x.metierId!==trade)return false;
-    if(status){const vs=getCpVisits(x),latest=vs.reduce((a,v)=>!a||String(v.date||'').localeCompare(String(a.date||''))>=0?v:a,null);if(!latest||latest.status!==status)return false}
-    return true;
-   }),tradePct=tradePts.length?Math.round(tradePts.reduce((a,x)=>a+cpProgress(x),0)/tradePts.length):0,tradeBar=box?.querySelector('.metier-head .bar span'),tradeLabel=box?.querySelector('.metier-head .muted');if(tradeBar)tradeBar.style.width=tradePct+'%';if(tradeLabel)tradeLabel.textContent=tradePct+'% · '+box.querySelectorAll('.cp-card').length+' '+t('controlPointCount');
-  p.updatedAt=new Date().toISOString();await put(p);
+$('checklistContainer').addEventListener('input',e=>{
+ const input=e.target.closest('[data-trade-progress-input]');if(!input)return;
+ if(input.value==='')return;
+ const p=activeProject();if(!p)return;
+ const detail=(p.blocDetails||[]).find(x=>x.blocId===input.dataset.blocId);if(!detail)return;
+ const raw=Number(input.value);if(!Number.isFinite(raw))return;
+ const pct=Math.max(0,Math.min(100,Math.round(raw))),key=input.dataset.progressKey;
+ ensureTradeProgressData(detail);detail.tradeProgress[key]=pct;
+ const panel=input.closest('.metier-progress-panel');
+ if(panel){
+  const range=panel.querySelector('[data-trade-progress-input="range"]');
+  const number=panel.querySelector('[data-trade-progress-input="number"]');
+  if(range&&range!==input)range.value=String(pct);
+  if(number&&number!==input)number.value=String(pct);
+  const label=panel.querySelector('.metier-progress-value');if(label)label.textContent=pct+'%';
  }
+});
+$('checklistContainer').addEventListener('change',async e=>{
+ const input=e.target.closest('[data-trade-progress-input]');if(!input)return;
+ const p=activeProject();if(!p)return;
+ const detail=(p.blocDetails||[]).find(x=>x.blocId===input.dataset.blocId);if(!detail)return;
+ ensureTradeProgressData(detail);
+ const key=input.dataset.progressKey,stored=tradeProgressValue(detail,key);
+ if(input.value===''){input.value=String(stored);return}
+ const raw=Number(input.value);if(!Number.isFinite(raw)){input.value=String(stored);return}
+ const pct=Math.max(0,Math.min(100,Math.round(raw)));
+ detail.tradeProgress[key]=pct;
+ const panel=input.closest('.metier-progress-panel');
+ if(panel){
+  panel.querySelectorAll('[data-trade-progress-input]').forEach(el=>el.value=String(pct));
+  const label=panel.querySelector('.metier-progress-value');if(label)label.textContent=pct+'%';
+ }
+ p.updatedAt=new Date().toISOString();
+ try{await put(p)}catch(err){console.error('Métier progress save failed:',err);toast(t('dbSaveErr'))}
 });
 
 function openVisitModal(p,cp,visitId=null){
- const visits=getCpVisits(cp),existing=visitId?visits.find(v=>v.id===visitId):null,v=existing||{id:uid('v_'),date:new Date().toISOString().slice(0,10),remark:'',status:'conforme',images:[],progress:0,locked:false};let imgs=[...(v.images||[])];
- openModal(t('visitModalTitle')+cp.name,`<div class="form-grid"><div class="field"><label>${t('visitDateLabel')}</label><input type="date" id="vDate" value="${safe(v.date)}"></div><div class="field"><label>${t('visitStatusLabel')}</label><select id="vStatus"><option value="conforme" ${v.status==='conforme'?'selected':''}>${t('statusConforme')}</option><option value="nonconforme" ${v.status==='nonconforme'?'selected':''}>${t('statusNonConforme')}</option><option value="reserve" ${v.status==='reserve'?'selected':''}>${t('statusReserve')}</option></select></div><div class="field full"><label>${t('visitRemarkLabel')}</label><textarea id="vRemark" rows="3">${safe(v.remark)}</textarea></div><div class="field full"><label>${t('workProgress')} <span id="vProgressLabel">${Number(v.progress)||0}%</span></label><input type="range" id="vProgress" min="0" max="100" value="${Number(v.progress)||0}"></div><div class="field full"><label>${t('visitImagesLabel')}</label><label class="secondary" style="text-align:center;cursor:pointer;padding:10px;border-radius:var(--radius-sm);margin-top:8px;font-weight:600;display:block"><input id="vImgs" type="file" accept="image/*" multiple style="display:none">${t('visitPickImgs')}</label><div id="vImgsPreview" class="thumb-grid"></div></div></div><div class="form-actions"><button class="primary" id="vSave">${t('saveBtn')}</button><button class="secondary" id="vCancel">${t('backBtn')}</button></div>`);
- const renderImgs=()=>{$('vImgsPreview').innerHTML=imgs.map(src=>`<div class="thumb-item"><img src="${src}"></div>`).join('')};renderImgs();$('vProgress').oninput=()=>{$('vProgressLabel').textContent=$('vProgress').value+'%'};
+ const visits=getCpVisits(cp),existing=visitId?visits.find(v=>v.id===visitId):null,v=existing||{id:uid('v_'),date:new Date().toISOString().slice(0,10),remark:'',status:'conforme',images:[]};let imgs=[...(v.images||[])];
+ openModal(t('visitModalTitle')+cp.name,`<div class="form-grid"><div class="field"><label>${t('visitDateLabel')}</label><input type="date" id="vDate" value="${safe(v.date)}"></div><div class="field"><label>${t('visitStatusLabel')}</label><select id="vStatus"><option value="conforme" ${v.status==='conforme'?'selected':''}>${t('statusConforme')}</option><option value="nonconforme" ${v.status==='nonconforme'?'selected':''}>${t('statusNonConforme')}</option><option value="reserve" ${v.status==='reserve'?'selected':''}>${t('statusReserve')}</option></select></div><div class="field full"><label>${t('visitRemarkLabel')}</label><textarea id="vRemark" rows="3">${safe(v.remark)}</textarea></div><div class="field full"><label>${t('visitImagesLabel')}</label><label class="secondary" style="text-align:center;cursor:pointer;padding:10px;border-radius:var(--radius-sm);margin-top:8px;font-weight:600;display:block"><input id="vImgs" type="file" accept="image/*" multiple style="display:none">${t('visitPickImgs')}</label><div id="vImgsPreview" class="thumb-grid"></div></div></div><div class="form-actions"><button class="primary" id="vSave">${t('saveBtn')}</button><button class="secondary" id="vCancel">${t('backBtn')}</button></div>`);
+ const renderImgs=()=>{$('vImgsPreview').innerHTML=imgs.map(src=>`<div class="thumb-item"><img src="${src}"></div>`).join('')};renderImgs();
  $('vImgs').onchange=async e=>{for(const f of e.target.files){try{imgs.push(await compressImage(f,800,.78))}catch(err){}}renderImgs()};$('vCancel').onclick=closeModal;
- $('vSave').onclick=async()=>{const saved={...v,date:$('vDate').value,remark:$('vRemark').value.trim(),status:$('vStatus').value,progress:Number($('vProgress').value),images:imgs};if(existing)visits[visits.findIndex(x=>x.id===existing.id)]=saved;else visits.push(saved);cp.visits=visits;expandedVisits.add(activeId+'_'+cp.id+'_'+saved.id);closeModal();await saveProjectChecklist(p);toast(t('visitSaved'))};
+ $('vSave').onclick=async()=>{const saved={...v,date:$('vDate').value,remark:$('vRemark').value.trim(),status:$('vStatus').value,images:imgs};if(existing)visits[visits.findIndex(x=>x.id===existing.id)]=saved;else visits.push(saved);cp.visits=visits;expandedVisits.add(activeId+'_'+cp.id+'_'+saved.id);closeModal();await saveProjectChecklist(p);toast(t('visitSaved'))};
 }
 
 function openLightbox(p,cp,idx,visitId){
@@ -1960,7 +2077,7 @@ function openAddControlPointModal(forceType=null){
   const locId=$('ncp_loc').value,locs=trade.type==='facade'?d.facades:d.floors,locIds=trade.type==='facade'?d.facadeIds:d.floorIds,li=locIds.indexOf(locId);
   if(locId&&li<0){toast(t('noTradesAvail'));return}
   p.checklist=p.checklist||[];
-  p.checklist.push({id:uid('cp_'),name,metier:trade.name,metierType:trade.type,metierId:trade.id,bloc:d.isMonobloc?'':d.name,blocId:d.blocId,location:li>=0?locs[li]:'',locationId:li>=0?locId:'',description:$('ncp_desc').value.trim(),progress:0,locked:true});
+  p.checklist.push({id:uid('cp_'),name,metier:trade.name,metierType:trade.type,metierId:trade.id,bloc:d.isMonobloc?'':d.name,blocId:d.blocId,location:li>=0?locs[li]:'',locationId:li>=0?locId:'',description:$('ncp_desc').value.trim()});
   closeModal();await saveProjectChecklist(p);toast(t('cpAdded'));
  };
 }
@@ -2039,7 +2156,7 @@ $('excelImportInput').onchange=async e=>{
    if(row.ft){structureAdded+=excelAddUnique(detail.facadeTrades,row.ft)?1:0;structureAdded+=excelAddUnique(p.facadeTrades=p.facadeTrades||[],row.ft)?1:0;addGroup('facade',detail,row.bloc,row.facade,row.ft,row.fcp,row.fd);}
   }
   if(!validRows)throw new Error('Aucune ligne de données exploitable.');
-  // Update only represented groups. Exact matches retain their visits, progress and IDs.
+  // Update only represented groups. Exact matches retain their visits and IDs; métier/location progress stays in blocDetails.
   // A new point is added rather than silently renaming an unrelated existing point.
   groups.forEach(g=>{
    const existing=p.checklist.filter(c=>(c.metierType||'building')===g.type&&(c.blocId?c.blocId===g.blocId:excelNorm(c.bloc)===excelNorm(g.bloc))&&excelNorm(c.location)===excelNorm(g.location)&&excelNorm(c.metier)===excelNorm(g.trade));
@@ -2047,7 +2164,7 @@ $('excelImportInput').onchange=async e=>{
    g.items.forEach(item=>{
     const exact=unmatched.findIndex(c=>excelNorm(c.name)===excelNorm(item.name));
     if(exact>=0){const cp=unmatched.splice(exact,1)[0];if((cp.description||'')!==item.description){cp.description=item.description;updated++;}}
-    else{const d=g.detail,facade=g.type==='facade',tradeArr=facade?d.facadeTrades:d.buildingTrades,tradeIds=facade?d.facadeTradeIds:d.buildingTradeIds,locArr=facade?d.facades:d.floors,locIds=facade?d.facadeIds:d.floorIds,ti=tradeArr.findIndex(x=>excelNorm(x)===excelNorm(g.trade)),li=locArr.findIndex(x=>excelNorm(x)===excelNorm(g.location));p.checklist.push({id:uid('cp_'),name:item.name,metier:g.trade,metierType:g.type,metierId:ti>=0?tradeIds[ti]:undefined,bloc:g.bloc,blocId:g.blocId,location:g.location,locationId:li>=0?locIds[li]:undefined,description:item.description,progress:0,locked:true});added++;}
+    else{const d=g.detail,facade=g.type==='facade',tradeArr=facade?d.facadeTrades:d.buildingTrades,tradeIds=facade?d.facadeTradeIds:d.buildingTradeIds,locArr=facade?d.facades:d.floors,locIds=facade?d.facadeIds:d.floorIds,ti=tradeArr.findIndex(x=>excelNorm(x)===excelNorm(g.trade)),li=locArr.findIndex(x=>excelNorm(x)===excelNorm(g.location));p.checklist.push({id:uid('cp_'),name:item.name,metier:g.trade,metierType:g.type,metierId:ti>=0?tradeIds[ti]:undefined,bloc:g.bloc,blocId:g.blocId,location:g.location,locationId:li>=0?locIds[li]:undefined,description:item.description});added++;}
    });
    unmatched.forEach(cp=>{const idx=p.checklist.indexOf(cp);if(idx>=0){p.checklist.splice(idx,1);removed++;}});
   });
@@ -2562,13 +2679,13 @@ function reportCollect(p,range,f){
  return {checklist,visits,pv,rec:coordItems('rec'),etp:coordItems('etp'),bet:coordItems('bet'),meetings};
 }
 function reportProgress(p,range,f){
- // chartData is the same calculation engine used by Courbes d’Avancement.
+ // The report uses the same current métier/location progress as Courbes d’Avancement; the visit period does not filter manual progress.
  const groups=chartData(p,range).map(g=>({...g,points:g.points.filter(x=>(!f.bloc||(x.cp.blocId?x.cp.blocId===f.bloc:x.cp.bloc===f.bloc))&&reportLocationMatch(x.cp,f))}))
  .filter(g=>(!f.trade||(g.tradeId?g.tradeId===f.trade:g.type+'::'+g.name===f.trade))&&g.points.length)
  .map(g=>({...g,pct:Math.round(g.points.reduce((a,x)=>a+x.pct,0)/g.points.length)}));
  const points=groups.flatMap(g=>g.points),overall=points.length?Math.round(points.reduce((a,x)=>a+x.pct,0)/points.length):null;
  const aggregate=(key,predicate=()=>true)=>{const map=new Map();points.filter(x=>predicate(x.cp)).forEach(x=>{const cp=x.cp,bloc=cp.bloc||'Monobloc',v=cp[key]||'—',identity=key==='location'?`${cp.blocId||bloc}::${cp.locationId||v}`:String(v);if(!map.has(identity))map.set(identity,{name:key==='location'?`${blocDisplayLabel(p,(p.blocDetails||[]).find(d=>d.blocId===cp.blocId)||{})} — ${v}`:key==='bloc'?blocDisplayLabel(p,(p.blocDetails||[]).find(d=>d.blocId===cp.blocId)||{}):v,values:[]});map.get(identity).values.push(x.pct)});return [...map.values()].map(g=>({name:g.name,pct:Math.round(g.values.reduce((a,b)=>a+b,0)/g.values.length)}))};
- return {groups,points,overall,byBlock:aggregate('bloc'),byFloor:aggregate('location',cp=>cp.metierType!=='facade'),byFacade:aggregate('location',cp=>cp.metierType==='facade'),byTrade:groups.map(g=>({name:`${g.bloc||'Monobloc'} — ${g.name}`,pct:g.pct}))};
+ return {groups,points,overall,byBlock:aggregate('bloc'),byFloor:aggregate('location',cp=>cp.metierType!=='facade'),byFacade:aggregate('location',cp=>cp.metierType==='facade'),byTrade:groups.map(g=>({name:`${g.bloc||'Monobloc'} — ${g.type==='facade'?ct('facade'):ct('building')} — ${g.location||'—'} — ${g.name}`,pct:g.pct}))};
 }
 function reportEsc(v){return pvEsc(v===null||v===undefined?'':String(v))}
 function reportTable(headers,rows){
