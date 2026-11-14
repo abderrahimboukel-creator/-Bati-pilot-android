@@ -12,7 +12,8 @@
     "@capacitor/core": "^8.0.0",
     "@capgo/capacitor-printer": "^8.0.0",
     "@capacitor/filesystem": "^8.0.0",
-    "@capacitor/share": "^8.0.0"
+    "@capacitor/share": "^8.0.0",
+    "@capacitor/app": "^8.1.2"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.0.0",
