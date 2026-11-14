@@ -462,6 +462,16 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
  .modal{width:100%;max-width:100%;max-height:calc(100dvh - 12px)}
  .modal-body{overflow-x:hidden}
 }
+
+/* Lazy rendering and on-demand image controls */
+.lazy-render-slot{min-width:0;contain:layout style}
+.lazy-render-slot:not([data-lazy-loaded="1"]){content-visibility:auto}
+.photo-placeholder,.coord-photo-placeholder,.project-image-trigger,.image-open-trigger{display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:#eaf0f6;color:#45617e;cursor:pointer;font-size:18px;padding:0}
+.thumb-item.photo-placeholder{width:42px;height:42px}
+.pv-photo-card .photo-placeholder{width:42px;height:42px;min-height:42px}
+.coord-photos .coord-photo-placeholder,.coord-photo-item .coord-photo-open{width:42px;height:42px;min-width:42px;min-height:42px}
+.image-preview .image-open-trigger{width:auto;min-width:112px;min-height:40px;padding:8px 14px;font-size:13px}
+.project-thumb .project-image-trigger{width:100%;height:100%;border:0;border-radius:0;background:transparent;color:inherit}
 </style>
 </head>
 <body>
@@ -1240,7 +1250,7 @@ const rt=k=>(REPORT_I18N[currentLang]||REPORT_I18N.fr)[k]||REPORT_I18N.fr[k]||k;
 const REPORT_SECTIONS=['synthesis','advancement','compliance','pv','photosSec','recommendations','etp','bet','meetings','actions'];
 const REPORT_SECTION_LABELS={synthesis:'synthesis',advancement:'advancement',compliance:'compliance',pv:'pv',photosSec:'photosSec',recommendations:'recommendations',etp:'etp',bet:'bet',meetings:'meetings',actions:'actions'};
 
-const DB_NAME='BatiPilotDB', DB_VERSION=1, STORE='projects';
+const DB_NAME='BatiPilotDB', DB_VERSION=2, STORE='projects', MEDIA_STORE='media';
 let db=null, projects=[], activeId=null, formMode='create', editingId=null, pendingImage=null;
 let formBlocDetails=[],formRemovedBlocIds=[], activeTab='dashboard', expandedVisits=new Set();
 const PAGE_HISTORY_LIMIT=80, PAGE_HISTORY_EVENT_LIMIT=160;
@@ -1387,11 +1397,81 @@ async function applyPageHistory(direction){
  finally{historyBusy=false;updatePageHistoryControls()}
 }
 function toast(msg){$('toast').textContent=msg;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),2800)}
-function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const d=req.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'})};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
+const MEDIA_REF_PREFIX='bati-media://';
+const reportMediaCache=new Map();
+function isMediaRef(value){return typeof value==='string'&&value.startsWith(MEDIA_REF_PREFIX)}
+function isInlineImage(value){return typeof value==='string'&&/^data:image\//i.test(value)}
+function eachProjectMediaSlot(project,visit){
+ if(!project||typeof project!=='object')return;
+ if(typeof project.image==='string'&&project.image)visit(project.image,value=>{project.image=value});
+ (project.checklist||[]).forEach(cp=>{
+  const visits=Array.isArray(cp.visits)?cp.visits:(cp.visit?[cp.visit]:[]);
+  visits.forEach(v=>(Array.isArray(v.images)?v.images:[]).forEach((src,index)=>visit(src,value=>{v.images[index]=value})));
+ });
+ (project.pvReports||[]).forEach(pv=>(Array.isArray(pv.photos)?pv.photos:[]).forEach((src,index)=>visit(src,value=>{pv.photos[index]=value})));
+ Object.values(project.coordinationData||{}).forEach(section=>{
+  (section?.items||[]).forEach(item=>(Array.isArray(item.photos)?item.photos:[]).forEach((src,index)=>visit(src,value=>{item.photos[index]=value})));
+ });
+}
+function projectHasInlineMedia(project){let found=false;eachProjectMediaSlot(project,src=>{if(isInlineImage(src))found=true});return found}
+function projectMediaIds(project){const ids=new Set();eachProjectMediaSlot(project,src=>{if(isMediaRef(src))ids.add(src.slice(MEDIA_REF_PREFIX.length))});return ids}
+function externalizeProjectMedia(project,records=[]){
+ eachProjectMediaSlot(project,(src,set)=>{
+  if(!isInlineImage(src))return;
+  const id=uid('media_');records.push({id,projectId:project.id,data:src,createdAt:new Date().toISOString()});set(MEDIA_REF_PREFIX+id);
+ });
+ return records;
+}
+function mediaRecordId(ref){return isMediaRef(ref)?ref.slice(MEDIA_REF_PREFIX.length):''}
+function getMediaRecord(id){return new Promise((resolve,reject)=>{const r=db.transaction(MEDIA_STORE,'readonly').objectStore(MEDIA_STORE).get(id);r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error)})}
+async function resolveMediaSource(src){if(!isMediaRef(src))return src||'';const record=await getMediaRecord(mediaRecordId(src));return record?.data||''}
+async function hydrateProjectMedia(project){
+ const copy=historyClone(project),refs=new Set();eachProjectMediaSlot(copy,src=>{if(isMediaRef(src))refs.add(src)});
+ const resolved=new Map(await Promise.all([...refs].map(async ref=>[ref,await resolveMediaSource(ref)])));
+ eachProjectMediaSlot(copy,(src,set)=>{if(resolved.has(src))set(resolved.get(src))});return copy;
+}
+function downloadImageData(data,name){if(!data)return;const a=document.createElement('a');a.href=data;a.download=name||'photo.jpg';document.body.appendChild(a);a.click();a.remove()}
+function closeMediaLightbox(){mediaLightboxToken++;const box=$('lightbox'),img=$('lbImg');if(img)img.removeAttribute('src');if(box)box.classList.add('hidden');const del=$('lbDelete');if(del)del.classList.remove('hidden')}
+let mediaLightboxToken=0;
+async function openMediaLightbox(ref,options={}){
+ const token=++mediaLightboxToken,box=$('lightbox'),img=$('lbImg'),del=$('lbDelete');
+ img.removeAttribute('src');box.classList.remove('hidden');
+ if(del)del.classList.toggle('hidden',typeof options.onDelete!=='function');
+ $('lbClose').onclick=closeMediaLightbox;
+ $('lbDownload').onclick=async()=>{try{const data=await resolveMediaSource(ref);if(data)downloadImageData(data,options.downloadName||'photo.jpg')}catch(error){console.error(error);toast(t('imageLoadErr'))}};
+ if(del)del.onclick=async()=>{if(typeof options.onDelete==='function')await options.onDelete()};
+ try{const data=await resolveMediaSource(ref);if(token!==mediaLightboxToken)return;if(!data){closeMediaLightbox();toast(t('imageLoadErr'));return}img.src=data}
+ catch(error){console.error('Image retrieval failed:',error);if(token===mediaLightboxToken){closeMediaLightbox();toast(t('imageLoadErr'))}}
+}
+function collectMediaRefs(items){const out=[];(items||[]).forEach(item=>(item?.photos||[]).forEach(src=>{if(isMediaRef(src))out.push(src)}));return out}
+async function prepareReportMediaCache(project,data,includePhotos,sections,detail){
+ reportMediaCache.clear();if(!includePhotos)return;
+ const refs=new Set();if(project.image&&isMediaRef(project.image))refs.add(project.image);
+ const show=key=>sections.includes(key);
+ if(show('pv')&&!show('photosSec'))collectMediaRefs(data.pv).forEach(x=>refs.add(x));
+ if(show('photosSec')){
+  collectMediaRefs(data.pv).forEach(x=>refs.add(x));
+  [...data.rec,...data.etp,...data.bet].forEach(item=>(item.photos||[]).forEach(src=>{if(isMediaRef(src))refs.add(src)}));
+ }
+ if(detail&&!show('photosSec')){if(show('recommendations'))data.rec.forEach(item=>(item.photos||[]).forEach(src=>{if(isMediaRef(src))refs.add(src)}));if(show('etp'))data.etp.forEach(item=>(item.photos||[]).forEach(src=>{if(isMediaRef(src))refs.add(src)}));if(show('bet'))data.bet.forEach(item=>(item.photos||[]).forEach(src=>{if(isMediaRef(src))refs.add(src)}))}
+ await Promise.all([...refs].map(async ref=>{const dataUrl=await resolveMediaSource(ref);if(dataUrl)reportMediaCache.set(ref,dataUrl)}));
+}
+
+function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const d=req.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'});if(!d.objectStoreNames.contains(MEDIA_STORE)){const media=d.createObjectStore(MEDIA_STORE,{keyPath:'id'});media.createIndex('projectId','projectId',{unique:false})}else{const media=req.transaction.objectStore(MEDIA_STORE);if(!media.indexNames.contains('projectId'))media.createIndex('projectId','projectId',{unique:false})}};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 function tx(mode='readonly'){return db.transaction(STORE,mode).objectStore(STORE)}
 function getAll(){return new Promise((resolve,reject)=>{const r=tx().getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error)})}
-function put(p,options={}){const pageAtWrite=options.historyPage||activeTab;return new Promise((resolve,reject)=>{const r=tx('readwrite').put(p);r.onsuccess=()=>{if(options.skipHistory){if(!options.skipBaseline)historyBaseline.set(p.id,historyClone(p))}else historyCaptureSavedProject(p,pageAtWrite);resolve()};r.onerror=()=>reject(r.error)})}
-function remove(id){return new Promise((resolve,reject)=>{const r=tx('readwrite').delete(id);r.onsuccess=()=>{historyBaseline.delete(id);for(const key of [...pageHistoryStore.keys()])if(key.startsWith(id+'::'))pageHistoryStore.delete(key);resolve()};r.onerror=()=>reject(r.error)})}
+function put(p,options={}){
+ const pageAtWrite=options.historyPage||activeTab,mediaRecords=[];externalizeProjectMedia(p,mediaRecords);
+ return new Promise((resolve,reject)=>{
+  const transaction=db.transaction(mediaRecords.length?[STORE,MEDIA_STORE]:[STORE],'readwrite'),projectStore=transaction.objectStore(STORE);
+  if(mediaRecords.length){const mediaStore=transaction.objectStore(MEDIA_STORE);mediaRecords.forEach(record=>mediaStore.put(record));}
+  projectStore.put(p);
+  // Keep removed media records until the in-memory undo/redo window expires; undo may restore their references.
+  transaction.oncomplete=()=>{if(options.skipHistory){if(!options.skipBaseline)historyBaseline.set(p.id,historyClone(p))}else historyCaptureSavedProject(p,pageAtWrite);resolve()};
+  transaction.onerror=()=>reject(transaction.error||new Error('Project save failed'));transaction.onabort=()=>reject(transaction.error||new Error('Project save aborted'));
+ });
+}
+function remove(id){return new Promise((resolve,reject)=>{const transaction=db.transaction([STORE,MEDIA_STORE],'readwrite');transaction.objectStore(STORE).delete(id);const keys=transaction.objectStore(MEDIA_STORE).index('projectId').openKeyCursor(IDBKeyRange.only(id));keys.onsuccess=()=>{const cursor=keys.result;if(cursor){transaction.objectStore(MEDIA_STORE).delete(cursor.primaryKey);cursor.continue()}};transaction.oncomplete=()=>{historyBaseline.delete(id);for(const key of [...pageHistoryStore.keys()])if(key.startsWith(id+'::'))pageHistoryStore.delete(key);resolve()};transaction.onerror=()=>reject(transaction.error||new Error('Project deletion failed'));transaction.onabort=()=>reject(transaction.error||new Error('Project deletion aborted'))})}
 function showScreen(id){['welcome','createPage','appPage'].forEach(x=>$(x).classList.toggle('hidden',x!==id))}
 
 function formHTML(p={}){
@@ -1402,7 +1482,7 @@ function formHTML(p={}){
   <div class="field"><label>${t('formStudyEng')}</label><input id="f_study" value="${safe(p.studyEngineer||'')}"></div>
   <div class="field"><label>${t('formCompany')}</label><input id="f_company" value="${safe(p.company||'')}"></div>
   <div class="field"><label>${t('formOwner')}</label><input id="f_owner" value="${safe(p.owner||'')}"></div>
-  <div class="field full"><label>${t('formImage')}</label><div class="image-preview" id="formImagePreview">${p.image?`<img src="${p.image}">`:t('formImagePick')}</div><label class="secondary" style="text-align:center;cursor:pointer;padding:10px;border-radius:var(--radius-sm);margin-top:8px;font-weight:600"><input id="f_image" type="file" accept="image/*" style="display:none">${t('formImageBtn')}</label></div>
+  <div class="field full"><label>${t('formImage')}</label><div class="image-preview" id="formImagePreview">${p.image?`<button type="button" class="image-open-trigger" id="formImageOpen">${t('view')}</button>`:t('formImagePick')}</div><label class="secondary" style="text-align:center;cursor:pointer;padding:10px;border-radius:var(--radius-sm);margin-top:8px;font-weight:600"><input id="f_image" type="file" accept="image/*" style="display:none">${t('formImageBtn')}</label></div>
  </div>
  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div class="section-title" style="flex:1;margin:28px 0 12px">${t('formStructTitle')}</div><button type="button" class="danger small" id="deleteAllBlocItemsBtn">${t('deleteAllBlocItems')}</button></div>
  <div class="bloc-struct-bar">
@@ -1537,7 +1617,8 @@ function renderForm(p={},target=$('projectFormPanel')){
   if(ed){const i=Number(ed.dataset.editBloc),draft=captureProjectFormDraft(target);openBlocModal(formBlocDetails[i].isMonobloc,i,()=>restoreProjectFormAfterBloc(target,draft))}
   if(dl){const index=Number(dl.dataset.delBloc),removed=formBlocDetails[index];if(removed?.blocId)formRemovedBlocIds.push(removed.blocId);formBlocDetails.splice(index,1);renderBlocCards(target)}
  };
- target.querySelector('#f_image').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{pendingImage=await compressImage(f,800,.78);target.querySelector('#formImagePreview').innerHTML=`<img src="${pendingImage}">`}catch(err){console.error(err);toast(t('imageLoadErr'))}});
+ target.querySelector('#f_image').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{pendingImage=await compressImage(f,800,.78);target.querySelector('#formImagePreview').innerHTML=`<button type="button" class="image-open-trigger" id="formImageOpen">${t('view')}</button>`;bindFormImagePreview()}catch(err){console.error(err);toast(t('imageLoadErr'))}});
+ const bindFormImagePreview=()=>{const preview=target.querySelector('#formImagePreview');if(preview)preview.onclick=()=>{if(pendingImage)openMediaLightbox(pendingImage,{downloadName:'project-image.jpg'})}};bindFormImagePreview();
  target.querySelector('#saveProjectBtn').addEventListener('click',saveProjectFromForm);
  target.querySelector('#cancelFormBtn').addEventListener('click',()=>{if(formMode==='edit')closeModal();else showScreen('welcome')});
 }
@@ -1722,12 +1803,27 @@ async function saveProjectFromForm(){
  }catch(e){console.error('Project save failed:',e);toast(t('dbSaveErr'))}
 }
 
+async function migrateLegacyProjectRecords(){
+ try{if(localStorage.getItem('batiMediaMigrationV2')==='done')return}catch(error){}
+ return new Promise((resolve,reject)=>{
+  const transaction=db.transaction([STORE,MEDIA_STORE],'readwrite'),projectStore=transaction.objectStore(STORE),mediaStore=transaction.objectStore(MEDIA_STORE),request=projectStore.openCursor();
+  request.onsuccess=event=>{
+   const cursor=event.target.result;if(!cursor)return;
+   const project=cursor.value;let changed=false;
+   try{const sync=syncProjectArraysFromBlocs(project,true);changed=!!sync.changed}catch(error){console.error('Project structure migration failed',project.id,error)}
+   try{const records=[];externalizeProjectMedia(project,records);records.forEach(record=>mediaStore.put(record));if(records.length)changed=true}catch(error){console.error('Project image migration failed',project.id,error)}
+   if(changed)cursor.update(project);
+   cursor.continue();
+  };
+  request.onerror=()=>reject(request.error||new Error('Project migration cursor failed'));
+  transaction.oncomplete=()=>{try{localStorage.setItem('batiMediaMigrationV2','done')}catch(error){}resolve()};
+  transaction.onerror=()=>reject(transaction.error||new Error('Project migration failed'));transaction.onabort=()=>reject(transaction.error||new Error('Project migration aborted'));
+ });
+}
 async function loadProjects(){
+ // Migrate old inline photos one project at a time, before reading lightweight project records.
+ await migrateLegacyProjectRecords();
  projects=await getAll();
- for(const p of projects){
-  const sync=syncProjectArraysFromBlocs(p,true);
-  if(sync.changed){try{await put(p,{skipHistory:true,skipBaseline:true})}catch(e){console.error('Project migration failed',p.id,e)}}
- }
  projects.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
  // Only the active project needs an undo baseline; inactive projects are re-baselined on selection.
  historyBaseline.clear();
@@ -1735,10 +1831,9 @@ async function loadProjects(){
  if(active)historyBaseline.set(active.id,historyClone(active));
  renderProjectSelect();updatePageHistoryControls();
 }
-
 function renderProjectSelect(){$('projectSelect').innerHTML=projects.map(p=>`<option value="${safe(p.id)}">${safe(p.name)}${p.code?' — '+safe(p.code):''}</option>`).join('');if(activeId&&projects.some(p=>p.id===activeId))$('projectSelect').value=activeId}
 function activeProject(){return projects.find(p=>p.id===activeId)}
-function renderHeader(p){$('headerProjectName').textContent=p.name;$('headerProjectCode').textContent=p.code||t('noCode');$('headerThumb').innerHTML=p.image?`<img src="${p.image}" alt="Project">`:'🏗️';$('dashProjectMeta').textContent=[p.code,p.company,p.owner].filter(Boolean).join(' · ')||t('dashMetaDefault')}
+function renderHeader(p){$('headerProjectName').textContent=p.name;$('headerProjectCode').textContent=p.code||t('noCode');$('headerThumb').innerHTML=p.image?`<button type="button" class="project-image-trigger" aria-label="${safe(t('view'))}">📷</button>`:'🏗️';$('headerThumb').onclick=()=>{if(p.image)openMediaLightbox(p.image,{downloadName:'project-image.jpg'})};$('dashProjectMeta').textContent=[p.code,p.company,p.owner].filter(Boolean).join(' · ')||t('dashMetaDefault')}
 
 function switchTab(tab){
  activeTab=tab;
@@ -1762,7 +1857,7 @@ function switchTab(tab){
 function renderActiveView(){
  const p=activeProject();if(!p){historyBaseline.clear();showScreen('welcome');return}
  if(!historyBaseline.has(p.id)){historyBaseline.clear();historyBaseline.set(p.id,historyClone(p))}
- renderHeader(p);renderProjectSelect();showScreen('appPage');
+ renderHeader(p);renderProjectSelect();showScreen('appPage');clearInactivePageContent();
  if(activeTab==='dashboard')renderDashboard();
  else if(activeTab==='checklist')renderChecklistPage();
  else if(activeTab==='charts')renderChartsPage();
@@ -2012,6 +2107,39 @@ function populateChecklistFilters(p){
  $('fltBloc').onchange=()=>{populateChecklistFilters(p);renderChecklistPage()};
 }
 
+const lazyListObservers=new Set();
+function disposeLazyList(container){if(container?.__lazyObserver){container.__lazyObserver.disconnect();lazyListObservers.delete(container.__lazyObserver);container.__lazyObserver=null}}
+function disposeAllLazyLists(){lazyListObservers.forEach(observer=>observer.disconnect());lazyListObservers.clear();document.querySelectorAll('[data-lazy-list]').forEach(container=>{container.__lazyObserver=null})}
+function registerLazyList(container,items,renderer,estimate=180){
+ if(!container)return;disposeLazyList(container);
+ if(!items.length){container.innerHTML='';return}
+ const heights=items.map((item,index)=>Math.max(72,Number(typeof estimate==='function'?estimate(item,index):estimate)||180));
+ container.innerHTML=items.map((item,index)=>`<div class=\"lazy-render-slot\" data-lazy-index=\"${index}\" style=\"height:${heights[index]}px\"></div>`).join('');
+ if(!('IntersectionObserver' in window)){container.innerHTML=items.map(renderer).join('');return}
+ const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{
+  const slot=entry.target,index=Number(slot.dataset.lazyIndex);if(!Number.isInteger(index)||!items[index])return;
+  if(entry.isIntersecting){
+   if(slot.dataset.lazyLoaded==='1')return;
+   slot.style.height='auto';slot.innerHTML=renderer(items[index],index);slot.dataset.lazyLoaded='1';
+   requestAnimationFrame(()=>{if(slot.isConnected&&slot.dataset.lazyLoaded==='1'){const h=slot.getBoundingClientRect().height;if(h>0)heights[index]=h}});
+  }else if(slot.dataset.lazyLoaded==='1'){
+   const h=slot.getBoundingClientRect().height;if(h>0)heights[index]=h;
+   slot.innerHTML='';slot.dataset.lazyLoaded='0';slot.style.height=Math.max(72,heights[index])+'px';
+  }
+ }),{root:null,rootMargin:'650px 0px'});
+ container.__lazyObserver=observer;lazyListObservers.add(observer);
+ container.querySelectorAll('.lazy-render-slot').forEach(slot=>observer.observe(slot));
+}
+function clearInactivePageContent(){
+ const clear=(id)=>{const el=$(id);if(!el)return;disposeLazyList(el);el.querySelectorAll('[data-lazy-list]').forEach(disposeLazyList);el.innerHTML=''};
+ if(activeTab!=='checklist')clear('checklistContainer');
+ if(activeTab!=='pv')clear('pvReportsContainer');
+ if(!['rec','etp','bet'].includes(activeTab)){clear('coordItems');clear('coordMeetings')}
+ if(activeTab!=='charts'){['chartGraphic','chByTrade','chByBlock','chByLoc','chRemaining'].forEach(clear)}
+ if(activeTab!=='globalReport'){if($('reportPreview'))$('reportPreview').innerHTML='';if($('rpExport'))$('rpExport').disabled=true;if($('rpPrint'))$('rpPrint').disabled=true;reportMediaCache.clear()}
+}
+function estimateControlPointHeight(cp){const visits=getCpVisits(cp);let h=126+(cp.description?48:0)+visits.length*48;visits.forEach(v=>{if(expandedVisits.has(activeId+'_'+cp.id+'_'+v.id))h+=110+(v.images||[]).length*48});return h}
+
 function renderChecklistPage(){
  const p=activeProject();if(!p)return;
  populateChecklistFilters(p);
@@ -2042,13 +2170,9 @@ function renderChecklistPage(){
   const key=JSON.stringify([blocId,type,tradeKey,locationId]);
   (scopeIndex.get(key)||[]).forEach(scope=>pointsByScope.get(scope).push(cp));
  });
- container.innerHTML=scopes.map(scope=>{
-  if(fB&&scope.blocId!==fB)return '';
-  if(fL&&scope.locationId!==fL)return '';
-  if(fM&&scope.tradeId!==fM)return '';
-  const pts=pointsByScope.get(scope)||[];
-  if((q||fS)&&!pts.length)return '';
-  const detail=scope.detail,key=scope.key,pct=tradeProgressValue(detail,key),expanded=tradeProgressIsExpanded(detail,key);
+ const visibleScopes=scopes.filter(scope=>{if(fB&&scope.blocId!==fB)return false;if(fL&&scope.locationId!==fL)return false;if(fM&&scope.tradeId!==fM)return false;const pts=pointsByScope.get(scope)||[];return !((q||fS)&&!pts.length)});
+ container.innerHTML=visibleScopes.map((scope,index)=>{
+  const pts=pointsByScope.get(scope)||[],detail=scope.detail,key=scope.key,pct=tradeProgressValue(detail,key),expanded=tradeProgressIsExpanded(detail,key);
   const locationType=scope.type==='facade'?t('facadeScope'):t('floorScope');
   return `<div class="metier-box" data-bloc-id="${safe(scope.blocId)}" data-progress-key="${safe(key)}">
    <div class="metier-head"><div>
@@ -2066,15 +2190,16 @@ function renderChecklistPage(){
      <input type="number" min="0" max="100" step="1" value="${pct}" data-trade-progress-input="number" data-bloc-id="${safe(scope.blocId)}" data-progress-key="${safe(key)}" aria-label="${t('progressRate')}">
     </div>
    </div>
-   ${pts.length?pts.map(cp=>renderControlPointCard(cp)).join(''):`<div class="empty-state">${t('noCpForTrade')}</div>`}
+   ${pts.length?`<div class="lazy-list" data-lazy-list="checklist-${index}"></div>`:`<div class="empty-state">${t('noCpForTrade')}</div>`}
   </div>`;
  }).join('')||`<div class="empty-state">${t('noFilterResults')}</div>`;
+ visibleScopes.forEach((scope,index)=>{const list=container.querySelector(`[data-lazy-list="checklist-${index}"]`);if(list)registerLazyList(list,pointsByScope.get(scope)||[],cp=>renderControlPointCard(cp),estimateControlPointHeight)});
 }
 
 function renderControlPointCard(cp){
  const visits=getCpVisits(cp);
  return `<div class="cp-card" data-cp="${cp.id}"><div class="cp-head"><div style="flex:1"><div class="cp-name">${safe(cp.name)}</div><div class="cp-loc">${cp.bloc?`🧱 ${safe(cp.bloc)} · `:''}📍 ${safe(cp.location||'—')}</div></div><div class="cp-actions"><button class="secondary small" data-cp-act="desc">${t('descriptifBtn')}</button><button class="primary small" data-cp-act="visit">${t('addVisitBtn')}</button><button class="secondary small" data-cp-act="edit">${t('editBtn')}</button><button class="danger small" data-cp-act="del">${t('delBtn')}</button></div></div>${cp.description?`<div class="cp-desc"><span>${safe(cp.description)}</span><button class="danger small" data-cp-act="del-desc" style="padding:2px 6px">✕</button></div>`:''}
- ${visits.map(v=>{const key=activeId+'_'+cp.id+'_'+v.id,expanded=expandedVisits.has(key),statuses={conforme:[t('statusConforme'),'dot-conforme'],nonconforme:[t('statusNonConforme'),'dot-nonconforme'],reserve:[t('statusReserve'),'dot-reserve']},st=statuses[v.status];return `<div class="visit-bar" data-visit-id="${v.id}"><span class="visit-date">📅 ${safe(v.date||'—')}</span><div class="visit-actions"><button class="secondary visit-action-btn" data-cp-act="toggle-visit">${expanded?t('hideBtn'):t('showBtn')}</button><button class="secondary visit-action-btn" data-cp-act="edit-visit">${t('editBtn')}</button><button class="danger visit-action-btn" data-cp-act="del-visit">${t('delBtn')}</button></div></div><div class="visit-details ${expanded?'':'hidden'}" data-visit-id="${v.id}"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">${st?`<span class="status-dot ${st[1]}"><span class="dot-light"></span>${st[0]}</span>`:''}</div><div style="font-size:13px;color:var(--text);margin-bottom:12px;line-height:1.6">${safe(v.remark||'')}</div>${v.images?.length?`<div class="thumb-grid">${v.images.map((img,idx)=>`<div class="thumb-item" data-cp-act="view-img" data-visit-id="${v.id}" data-img-idx="${idx}"><img src="${img}" loading="lazy" decoding="async"></div>`).join('')}</div>`:''}</div>`}).join('')}</div>`;
+ ${visits.map(v=>{const key=activeId+'_'+cp.id+'_'+v.id,expanded=expandedVisits.has(key),statuses={conforme:[t('statusConforme'),'dot-conforme'],nonconforme:[t('statusNonConforme'),'dot-nonconforme'],reserve:[t('statusReserve'),'dot-reserve']},st=statuses[v.status];return `<div class="visit-bar" data-visit-id="${v.id}"><span class="visit-date">📅 ${safe(v.date||'—')}</span><div class="visit-actions"><button class="secondary visit-action-btn" data-cp-act="toggle-visit">${expanded?t('hideBtn'):t('showBtn')}</button><button class="secondary visit-action-btn" data-cp-act="edit-visit">${t('editBtn')}</button><button class="danger visit-action-btn" data-cp-act="del-visit">${t('delBtn')}</button></div></div><div class="visit-details ${expanded?'':'hidden'}" data-visit-id="${v.id}"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">${st?`<span class="status-dot ${st[1]}"><span class="dot-light"></span>${st[0]}</span>`:''}</div><div style="font-size:13px;color:var(--text);margin-bottom:12px;line-height:1.6">${safe(v.remark||'')}</div>${v.images?.length?`<div class="thumb-grid">${v.images.map((img,idx)=>`<div class="thumb-item photo-placeholder" role="button" tabindex="0" aria-label="${safe(t('view'))}" data-cp-act="view-img" data-visit-id="${v.id}" data-img-idx="${idx}">📷</div>`).join('')}</div>`:''}</div>`}).join('')}</div>`;
 }
 
 async function saveProjectChecklist(p){
@@ -2191,22 +2316,15 @@ $('checklistContainer').addEventListener('change',async e=>{
 function openVisitModal(p,cp,visitId=null){
  const visits=getCpVisits(cp),existing=visitId?visits.find(v=>v.id===visitId):null,v=existing||{id:uid('v_'),date:new Date().toISOString().slice(0,10),remark:'',status:'conforme',images:[]};let imgs=[...(v.images||[])];
  openModal(t('visitModalTitle')+cp.name,`<div class="form-grid"><div class="field"><label>${t('visitDateLabel')}</label><input type="date" id="vDate" value="${safe(v.date)}"></div><div class="field"><label>${t('visitStatusLabel')}</label><select id="vStatus"><option value="conforme" ${v.status==='conforme'?'selected':''}>${t('statusConforme')}</option><option value="nonconforme" ${v.status==='nonconforme'?'selected':''}>${t('statusNonConforme')}</option><option value="reserve" ${v.status==='reserve'?'selected':''}>${t('statusReserve')}</option></select></div><div class="field full"><label>${t('visitRemarkLabel')}</label><textarea id="vRemark" rows="3">${safe(v.remark)}</textarea></div><div class="field full"><label>${t('visitImagesLabel')}</label><label class="secondary" style="text-align:center;cursor:pointer;padding:10px;border-radius:var(--radius-sm);margin-top:8px;font-weight:600;display:block"><input id="vImgs" type="file" accept="image/*" multiple style="display:none">${t('visitPickImgs')}</label><div id="vImgsPreview" class="thumb-grid"></div></div></div><div class="form-actions"><button class="primary" id="vSave">${t('saveBtn')}</button><button class="secondary" id="vCancel">${t('backBtn')}</button></div>`);
- const renderImgs=()=>{$('vImgsPreview').innerHTML=imgs.map(src=>`<div class="thumb-item"><img src="${src}"></div>`).join('')};renderImgs();
+ const renderImgs=()=>{$('vImgsPreview').innerHTML=imgs.map((src,i)=>`<div class="thumb-item photo-placeholder" role="button" tabindex="0" data-v-img="${i}">📷</div>`).join('')};renderImgs();
+ $('vImgsPreview').onclick=e=>{const item=e.target.closest('[data-v-img]');if(item){const i=Number(item.dataset.vImg);openMediaLightbox(imgs[i],{downloadName:`visit_${cp.id}_${i+1}.jpg`})}};
  $('vImgs').onchange=async e=>{for(const f of e.target.files){try{imgs.push(await compressImage(f,800,.78))}catch(err){}}renderImgs()};$('vCancel').onclick=closeModal;
  $('vSave').onclick=async()=>{const saved={...v,date:$('vDate').value,remark:$('vRemark').value.trim(),status:$('vStatus').value,images:imgs};if(existing)visits[visits.findIndex(x=>x.id===existing.id)]=saved;else visits.push(saved);cp.visits=visits;expandedVisits.add(activeId+'_'+cp.id+'_'+saved.id);closeModal();await saveProjectChecklist(p);toast(t('visitSaved'))};
 }
 
-function openLightbox(p,cp,idx,visitId){
+async function openLightbox(p,cp,idx,visitId){
  const visit=getCpVisits(cp).find(v=>v.id===visitId);if(!visit)return;const src=visit.images[idx];if(!src)return;
- $('lbImg').src=src;$('lightbox').classList.remove('hidden');
- $('lbClose').onclick=()=>$('lightbox').classList.add('hidden');
- $('lbDownload').onclick=()=>{const a=document.createElement('a');a.href=src;a.download=`photo_${cp.id}_${idx+1}.jpg`;a.click()};
- $('lbDelete').onclick=async()=>{
-  if(!confirm(t('confirmDelImg')))return;
-  visit.images.splice(idx,1);
-  $('lightbox').classList.add('hidden');
-  await saveProjectChecklist(p);toast(t('imgDeleted'));
- };
+ await openMediaLightbox(src,{downloadName:`photo_${cp.id}_${idx+1}.jpg`,onDelete:async()=>{if(!confirm(t('confirmDelImg')))return;visit.images.splice(idx,1);closeMediaLightbox();await saveProjectChecklist(p);toast(t('imgDeleted'))}});
 }
 
 $('manageMetiersBtn').onclick=()=>{
@@ -2546,7 +2664,7 @@ function pvBetRow(row,i,p){
 }
 function pvPhotoCards(draft){
  if(!draft.photos?.length)return `<div class="pv-note">${pvEsc(pt('noPhotos'))}</div>`;
- return `<div class="pv-photo-grid">${draft.photos.map((src,i)=>`<div class="pv-photo-card"><img src="${src}" alt="Photo ${i+1}" loading="lazy" decoding="async" data-pv-action="photo-view" data-pv-index="${i}"><div class="pv-photo-actions"><button type="button" class="secondary" data-pv-action="photo-view" data-pv-index="${i}">${pvEsc(pt('view'))}</button><button type="button" class="secondary" data-pv-action="photo-download" data-pv-index="${i}">⇩</button><button type="button" class="danger" data-pv-action="photo-delete" data-pv-index="${i}">✕</button></div></div>`).join('')}</div>`;
+ return `<div class="pv-photo-grid">${draft.photos.map((src,i)=>`<div class="pv-photo-card"><button type="button" class="photo-placeholder" aria-label="${pvEsc(pt('view'))}" data-pv-action="photo-view" data-pv-index="${i}">📷</button><div class="pv-photo-actions"><button type="button" class="secondary" data-pv-action="photo-view" data-pv-index="${i}">${pvEsc(pt('view'))}</button><button type="button" class="secondary" data-pv-action="photo-download" data-pv-index="${i}">⇩</button><button type="button" class="danger" data-pv-action="photo-delete" data-pv-index="${i}">✕</button></div></div>`).join('')}</div>`;
 }
 function renderPvEditor(p,draft,existingId){
  const body=$('modalBody');
@@ -2633,10 +2751,10 @@ function renderPvPage(){
  $('pvPageTitle').textContent=pt('title');$('pvPageSubtitle').textContent=pt('subtitle');
  $('addPvBtn').textContent=pt('add');$('managePvMetiersBtn').textContent=pt('manageTrades');
  const reports=[...(p.pvReports||[])].sort((a,b)=>`${b.date||''} ${b.time||''}`.localeCompare(`${a.date||''} ${a.time||''}`));
- $('pvReportsContainer').innerHTML=reports.length?`<div class="pv-report-list">${reports.map((v)=>{
+ if(reports.length){$('pvReportsContainer').innerHTML='<div class="pv-report-list lazy-list" id="pvReportLazyList"></div>';registerLazyList($('pvReportLazyList'),reports,v=>{
   const total=(v.workforce||[]).reduce((sum,x)=>sum+(Number(x.count)||0),0),work=(v.workTracking||[]).length,bet=(v.betRemarks||[]).length,photos=(v.photos||[]).length;
   return `<article class="pv-report-card" data-pv-id="${pvEsc(v.id)}"><div class="pv-report-head"><div><div class="pv-report-title">PV de visite — ${pvEsc(v.date||'—')} · ${pvEsc(v.time||'—')}</div><div class="pv-report-meta">${pvEsc(pt('project'))}: ${pvEsc(p.name||'—')}${p.company?` · ${pvEsc(pt('company'))}: ${pvEsc(p.company)}`:''}</div></div><span class="badge">${pvEsc(pt('totalWorkers'))}: ${total}</span></div><div class="pv-report-stats"><span class="pv-stat">👷 ${total} ${pvEsc(pt('count'))}</span><span class="pv-stat">🛠 ${work} ${pvEsc(pt('workItems'))}</span><span class="pv-stat">📝 ${bet} ${pvEsc(pt('betItems'))}</span><span class="pv-stat">📷 ${photos} ${pvEsc(pt('photosCount'))}</span></div><div class="pv-report-actions"><button type="button" class="secondary small" data-pv-card-action="edit">${pvEsc(pt('edit'))}</button><button type="button" class="danger small" data-pv-card-action="delete">${pvEsc(pt('delete'))}</button><button type="button" class="primary small" data-pv-card-action="print">${pvEsc(pt('print'))}</button></div></article>`;
- }).join('')}</div>`:`<div class="empty-state">${pvEsc(pt('empty'))}</div>`;
+ },170)}else $('pvReportsContainer').innerHTML=`<div class="empty-state">${pvEsc(pt('empty'))}</div>`;
 }
 function openPvMetiersManager(){
  const p=activeProject();if(!p)return;ensurePvData(p);let trades=[...(p.pvWorkerMetiers||[])];
@@ -2652,13 +2770,10 @@ function openPvMetiersManager(){
  };
  render();
 }
-function downloadPvPhoto(src,name){if(!src)return;const a=document.createElement('a');a.href=src;a.download=name||'photo.jpg';document.body.appendChild(a);a.click();a.remove()}
-function openPvPhotoLightbox(draft,index,rerender){
+async function downloadPvPhoto(src,name){if(!src)return;try{const data=await resolveMediaSource(src);downloadImageData(data,name||'photo.jpg')}catch(error){console.error(error);toast(t('imageLoadErr'))}}
+async function openPvPhotoLightbox(draft,index,rerender){
  const src=draft.photos[index];if(!src)return;
- $('lbImg').src=src;$('lightbox').classList.remove('hidden');
- $('lbClose').onclick=()=>$('lightbox').classList.add('hidden');
- $('lbDownload').onclick=()=>downloadPvPhoto(src,`PV_${draft.date||'visite'}_photo_${index+1}.jpg`);
- $('lbDelete').onclick=()=>{if(!confirm(pt('photoDelete')))return;draft.photos.splice(index,1);$('lightbox').classList.add('hidden');rerender()};
+ await openMediaLightbox(src,{downloadName:`PV_${draft.date||'visite'}_photo_${index+1}.jpg`,onDelete:async()=>{if(!confirm(pt('photoDelete')))return;draft.photos.splice(index,1);closeMediaLightbox();rerender()}});
 }
 async function printPvReport(pv){
  const p=activeProject();if(!p||!pv)return;
@@ -2667,7 +2782,8 @@ async function printPvReport(pv){
  const workers=rows(pv.workforce,[pt('trade'),pt('count')],x=>`<tr><td>${esc(x.metier)}</td><td>${Number(x.count)||0}</td></tr>`);
  const works=rows(pv.workTracking,[pt('trade'),pt('place'),pt('status')],x=>`<tr><td>${esc(x.metier)}</td><td>${esc(loc(x))}</td><td>${esc((PV_STATUSES.find(s=>s[0]===x.status)||PV_STATUSES[1])[1]())}</td></tr>`);
  const bets=rows(pv.betRemarks,[pt('trade'),pt('place'),pt('remark'),pt('action')],x=>`<tr><td>${esc(x.metier)}</td><td>${esc(loc(x))}</td><td>${esc(x.remark||'—')}</td><td>${esc(x.action||'—')}</td></tr>`);
- const photos=(pv.photos||[]).length?`<div class="photos">${pv.photos.map((src,i)=>`<figure><img src="${src}" alt="Photo ${i+1}"><figcaption>Photo ${i+1}</figcaption></figure>`).join('')}</div>`:'<p class="empty">—</p>';
+ const photoData=await Promise.all((pv.photos||[]).map(src=>resolveMediaSource(src)));
+ const photos=photoData.length?`<div class="photos">${photoData.map((src,i)=>`<figure><img src="${src}" alt="Photo ${i+1}"><figcaption>Photo ${i+1}</figcaption></figure>`).join('')}</div>`:'<p class="empty">—</p>';
  const frame=document.createElement('iframe');frame.title='PV de visite chantier';frame.setAttribute('aria-hidden','true');frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';document.body.appendChild(frame);
  const win=frame.contentWindow,doc=win.document,cleanup=()=>{if(frame.isConnected)frame.remove()};win.addEventListener('afterprint',cleanup,{once:true});
  const printHtml = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(pt('pdfTitle'))} - ${esc(p.name)}</title><style>
@@ -2711,15 +2827,20 @@ function renderCoordPage(){
  $('coordPageTitle').textContent=cfg.title;$('coordPageSubtitle').textContent=currentLang==='ar'?'تسجيل ومتابعة '+cfg.title:currentLang==='en'?'Recording and tracking — '+cfg.title:'Enregistrement et suivi — '+cfg.title;
  $('coordAddItem').textContent=cfg.add;
  const items=[...d.items].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
- $('coordItems').innerHTML=items.length?`<div class="coord-list">${items.map(x=>`<article class="coord-card" data-coord-item="${coordEsc(x.id)}"><div class="coord-card-head"><div><div class="pv-report-title">${coordEsc(cfg.singular)}</div><div class="coord-date">${coordEsc(x.date||'—')}</div></div><div class="pv-report-actions" style="margin:0"><button class="secondary small" data-coord-action="edit">✎ Modifier</button><button class="danger small" data-coord-action="delete">✕ Supprimer</button><button class="primary small" data-coord-action="print">Imprimer PDF</button></div></div><div class="coord-text">${coordEsc(x.text||'')}</div>${(x.photos||[]).length?`<div class="coord-photos">${x.photos.map((src,i)=>`<img src="${src}" alt="Photo ${i+1}" loading="lazy" decoding="async" data-coord-photo="${i}">`).join('')}</div>`:''}<div class="coord-status"><button data-coord-action="status" data-status="adopted" class="${x.status==='adopted'?'active-adopted':''}">Adopté</button><button data-coord-action="status" data-status="pending" class="${x.status==='pending'?'active-pending':''}">En attente</button></div></article>`).join('')}</div>`:`<div class="empty-state">Aucun élément enregistré pour cette page.</div>`;
+ if(items.length){$('coordItems').innerHTML='<div class="coord-list lazy-list" id="coordItemsLazyList"></div>';registerLazyList($('coordItemsLazyList'),items,x=>`<article class="coord-card" data-coord-item="${coordEsc(x.id)}"><div class="coord-card-head"><div><div class="pv-report-title">${coordEsc(cfg.singular)}</div><div class="coord-date">${coordEsc(x.date||'—')}</div></div><div class="pv-report-actions" style="margin:0"><button class="secondary small" data-coord-action="edit">✎ Modifier</button><button class="danger small" data-coord-action="delete">✕ Supprimer</button><button class="primary small" data-coord-action="print">Imprimer PDF</button></div></div><div class="coord-text">${coordEsc(x.text||'')}</div>${(x.photos||[]).length?`<div class="coord-photos">${x.photos.map((src,i)=>`<button type="button" class="coord-photo-placeholder" aria-label="Photo ${i+1}" data-coord-photo="${i}">📷</button>`).join('')}</div>`:''}<div class="coord-status"><button data-coord-action="status" data-status="adopted" class="${x.status==='adopted'?'active-adopted':''}">Adopté</button><button data-coord-action="status" data-status="pending" class="${x.status==='pending'?'active-pending':''}">En attente</button></div></article>`,210)}else $('coordItems').innerHTML='<div class="empty-state">Aucun élément enregistré pour cette page.</div>';
  const meetings=[...d.meetings].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
- $('coordMeetings').innerHTML=meetings.length?meetings.map(m=>`<article class="coord-meeting-card" data-coord-meeting="${coordEsc(m.id)}"><div class="coord-card-head"><div><strong>PV N° ${coordEsc(m.number||'—')}</strong><div class="coord-date">${coordEsc(m.date||'—')} · ${coordEsc(m.time||'—')}</div></div><div class="pv-report-actions" style="margin:0"><button class="secondary small" data-meeting-action="details">Détails</button><button class="secondary small" data-meeting-action="edit">Modifier</button><button class="danger small" data-meeting-action="delete">Supprimer</button><button class="primary small" data-meeting-action="print">Imprimer PDF</button></div></div><div class="coord-meeting-detail hidden" data-meeting-details><b>Les membres présents</b>\n${coordEsc(m.members||'—')}\n\n<b>Points et décisions abordés</b>\n${coordEsc(m.points||'—')}</div></article>`).join(''):`<div class="empty-state">Aucun PV de réunion enregistré pour cette page.</div>`;
+ if(meetings.length){$('coordMeetings').innerHTML='<div class="coord-meeting-list lazy-list" id="coordMeetingsLazyList"></div>';registerLazyList($('coordMeetingsLazyList'),meetings,m=>`<article class="coord-meeting-card" data-coord-meeting="${coordEsc(m.id)}"><div class="coord-card-head"><div><strong>PV N° ${coordEsc(m.number||'—')}</strong><div class="coord-date">${coordEsc(m.date||'—')} · ${coordEsc(m.time||'—')}</div></div><div class="pv-report-actions" style="margin:0"><button class="secondary small" data-meeting-action="details">Détails</button><button class="secondary small" data-meeting-action="edit">Modifier</button><button class="danger small" data-meeting-action="delete">Supprimer</button><button class="primary small" data-meeting-action="print">Imprimer PDF</button></div></div><div class="coord-meeting-detail hidden" data-meeting-details><b>Les membres présents</b>
+${coordEsc(m.members||'—')}
+
+<b>Points et décisions abordés</b>
+${coordEsc(m.points||'—')}</div></article>`,170)}else $('coordMeetings').innerHTML='<div class="empty-state">Aucun PV de réunion enregistré pour cette page.</div>';
 }
 async function printCoordItem(item){
  const p=activeProject();if(!p||!item)return;
  const cfg=COORD_TYPES[activeTab]||{title:'Document'};
  const status=item.status==='adopted'?'Adopté':item.status==='pending'?'En attente':'—';
- const photos=(item.photos||[]).map((src,i)=>`<figure><img src="${src}" alt="Photo ${i+1}"><figcaption>Photo ${i+1}</figcaption></figure>`).join('');
+ const photoData=await Promise.all((item.photos||[]).map(src=>resolveMediaSource(src)));
+ const photos=photoData.map((src,i)=>`<figure><img src="${src}" alt="Photo ${i+1}"><figcaption>Photo ${i+1}</figcaption></figure>`).join('');
  const html=`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${coordEsc(cfg.title)} - ${coordEsc(p.name||'')}</title><style>@page{size:A4 portrait;margin:16mm}*{box-sizing:border-box}body{font-family:Arial,"Segoe UI",sans-serif;color:#1b2a3a;font-size:11pt;line-height:1.6}header{border-bottom:3px solid #1d5fa8;padding-bottom:12px;margin-bottom:20px}h1{font-size:19pt;margin:0 0 8px;color:#0f1d2d}.meta{color:#64748b;font-size:9pt;margin:3px 0}.content{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #dbe4ef;border-radius:6px;padding:12px;min-height:70px}.status{margin-top:12px;color:#475569}.photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}.photos figure{margin:0;break-inside:avoid}.photos img{width:100%;max-height:230px;object-fit:contain;border:1px solid #dbe4ef}.photos figcaption{font-size:8pt;color:#64748b;margin-top:4px}.footer{margin-top:28px;border-top:1px solid #dbe4ef;padding-top:8px;font-size:8pt;color:#64748b}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header><h1>${coordEsc(cfg.title)}</h1><div class="meta">Projet : ${coordEsc(p.name||'—')}</div><div class="meta">Date : ${coordEsc(item.date||'—')}</div></header><h2>${coordEsc(cfg.singular||cfg.title)}</h2><div class="content">${coordEsc(item.text||'—')}</div><div class="status">Statut : ${coordEsc(status)}</div>${photos?`<h2>Photos</h2><div class="photos">${photos}</div>`:''}<div class="footer">BÂTI PILOT · ${coordEsc(p.name||'')}</div></body></html>`;
  if(await printHtmlViaAndroid(html,cfg.title+' - '+(p.name||'')))return;
  const w=window.open('','_blank');if(!w){toast(currentLang==='ar'?'يرجى السماح بالنوافذ المنبثقة للطباعة':'Autorisez les fenêtres pop-up pour imprimer');return}
@@ -2731,10 +2852,10 @@ function openCoordItemEditor(id=null){
  const draft=old?JSON.parse(JSON.stringify(old)):{id:uid('coord_'),date:pvLocalDate(),text:'',photos:[],status:null};
  draft.photos=Array.isArray(draft.photos)?draft.photos:[];
  openModal(old?'Modifier — '+COORD_TYPES[key].singular:'Ajouter — '+COORD_TYPES[key].singular,`<div class="form-grid"><div class="field"><label>Date</label><input id="coordDate" type="date" value="${coordEsc(draft.date)}"></div><div class="field full"><label>${coordEsc(COORD_TYPES[key].singular)}</label><textarea id="coordText" rows="5" placeholder="${coordEsc(COORD_TYPES[key].singular)}">${coordEsc(draft.text)}</textarea></div><div class="field full"><label>Photos</label><input id="coordPhotoInput" type="file" accept="image/*" multiple><div id="coordPhotoPreview" class="coord-photo-row"></div></div></div><div class="form-actions"><button class="primary" id="coordSave">Enregistrer</button><button class="secondary" id="coordCancel">Annuler</button></div>`);
- const preview=()=>{$('coordPhotoPreview').innerHTML=draft.photos.map((src,i)=>`<div class="coord-photo-item"><img src="${src}" data-view-photo="${i}"><button class="danger small" data-remove-photo="${i}">Supprimer</button></div>`).join('')};
+ const preview=()=>{$('coordPhotoPreview').innerHTML=draft.photos.map((src,i)=>`<div class="coord-photo-item"><button type="button" class="coord-photo-open" data-view-photo="${i}">📷</button><button class="danger small" data-remove-photo="${i}">Supprimer</button></div>`).join('')};
  preview();
  $('coordPhotoInput').onchange=async e=>{for(const f of [...e.target.files])try{draft.photos.push(await compressImage(f,800,.76))}catch(err){console.error(err)}preview();e.target.value=''};
- $('coordPhotoPreview').onclick=e=>{const del=e.target.closest('[data-remove-photo]');if(del){draft.photos.splice(Number(del.dataset.removePhoto),1);preview();return}const img=e.target.closest('[data-view-photo]');if(img){const src=draft.photos[Number(img.dataset.viewPhoto)];$('lbImg').src=src;$('lightbox').classList.remove('hidden');$('lbClose').onclick=()=>$('lightbox').classList.add('hidden');$('lbDownload').onclick=()=>downloadPvPhoto(src,'photo.jpg');$('lbDelete').onclick=()=>{$('lightbox').classList.add('hidden');draft.photos.splice(Number(img.dataset.viewPhoto),1);preview()}}};
+ $('coordPhotoPreview').onclick=e=>{const del=e.target.closest('[data-remove-photo]');if(del){draft.photos.splice(Number(del.dataset.removePhoto),1);preview();return}const img=e.target.closest('[data-view-photo]');if(img){const index=Number(img.dataset.viewPhoto),src=draft.photos[index];openMediaLightbox(src,{downloadName:'photo.jpg',onDelete:async()=>{closeMediaLightbox();draft.photos.splice(index,1);preview()}})}};
  $('coordCancel').onclick=closeModal;
  $('coordSave').onclick=async()=>{draft.date=$('coordDate').value;draft.text=$('coordText').value.trim();if(!draft.date||!draft.text){toast('Veuillez saisir la date et le texte.');return}const saved={...draft,updatedAt:new Date().toISOString()};const i=d.items.findIndex(x=>x.id===saved.id);if(i>=0)d.items[i]=saved;else d.items.push(saved);try{p.updatedAt=new Date().toISOString();await put(p);await loadProjects();closeModal();renderCoordPage();toast('Enregistrement effectué.')}catch(err){console.error(err);toast(t('dbSaveErr'))}};
 }
@@ -2757,7 +2878,7 @@ $('coordAddItem').onclick=()=>openCoordItemEditor();$('coordAddMeeting').onclick
 $('coordItems').addEventListener('click',async e=>{
  const card=e.target.closest('[data-coord-item]');if(!card)return;const p=activeProject(),d=coordData(p,activeTab),item=d.items.find(x=>x.id===card.dataset.coordItem);if(!item)return;
  const action=e.target.closest('[data-coord-action]');if(action){if(action.dataset.coordAction==='edit')openCoordItemEditor(item.id);else if(action.dataset.coordAction==='print'){printCoordItem(item)}else if(action.dataset.coordAction==='delete'){if(!confirm('Supprimer cet élément ?'))return;d.items=d.items.filter(x=>x.id!==item.id);await put(p);await loadProjects();renderCoordPage()}else if(action.dataset.coordAction==='status'){item.status=item.status===action.dataset.status?null:action.dataset.status;await put(p);await loadProjects();renderCoordPage()}return}
- const photo=e.target.closest('[data-coord-photo]');if(photo){const src=item.photos[Number(photo.dataset.coordPhoto)];$('lbImg').src=src;$('lightbox').classList.remove('hidden');$('lbClose').onclick=()=>$('lightbox').classList.add('hidden');$('lbDownload').onclick=()=>downloadPvPhoto(src,'photo.jpg');$('lbDelete').onclick=()=>{$('lightbox').classList.add('hidden')}}
+ const photo=e.target.closest('[data-coord-photo]');if(photo){const src=item.photos[Number(photo.dataset.coordPhoto)];openMediaLightbox(src,{downloadName:'photo.jpg'});return}
 });
 $('coordMeetings').addEventListener('click',async e=>{
  const card=e.target.closest('[data-coord-meeting]');if(!card)return;const p=activeProject(),d=coordData(p,activeTab),m=d.meetings.find(x=>x.id===card.dataset.coordMeeting);if(!m)return;
@@ -2905,7 +3026,7 @@ function reportPhotos(items,include){
  if(!include)return '';
  const imgs=items.flatMap(x=>(Array.isArray(x.photos)?x.photos:[])).filter(src=>typeof src==='string'&&src.trim());
  if(!imgs.length)return `<p class="report-muted">${rt('noImage')}</p>`;
- return `<div class="report-photo-grid">${imgs.map((src,i)=>`<figure><img src="${src}" alt="Photo ${i+1}"><figcaption>${rt('photosSec')} ${i+1}</figcaption></figure>`).join('')}</div>`;
+ return `<div class="report-photo-grid">${imgs.map((src,i)=>{const resolved=isMediaRef(src)?reportMediaCache.get(src):src;return resolved?`<figure><img src="${resolved}" alt="Photo ${i+1}"><figcaption>${rt('photosSec')} ${i+1}</figcaption></figure>`:''}).join('')}</div>`;
 }
 function reportCoordRows(items,type){
  return items.map(x=>`<tr><td>${reportEsc(type)}</td><td>${reportEsc(x.text||x.description||'—')}</td><td>${reportEsc(x.date||'—')}</td><td>${reportEsc(x.status==='adopted'?rt('adopted'):x.status==='pending'?rt('pending'):'—')}</td></tr>`);
@@ -2924,7 +3045,7 @@ function reportPendingItems(data){
  data.pv.forEach(pv=>(pv.betRemarks||[]).filter(x=>String(x.action||'').trim()).forEach((x,i)=>add(`pvaction:${pv.id}:${i}`,{type:'Intervention',description:x.action,location:[x.bloc,x.location].filter(Boolean).join(' / '),date:pv.date||'—',status:x.status||'—',source:'PV de visite chantier'})));
  return out;
 }
-function generateGlobalReport(){
+async function generateGlobalReport(){
  const p=activeProject();if(!p)return;
  const range=reportDateRange(),f=reportSelectedFilters();
  if(range.start&&range.end&&range.start>range.end){toast(currentLang==='ar'?'تاريخ البداية يجب أن يسبق تاريخ النهاية':'La date de début doit précéder la date de fin');return}
@@ -2938,6 +3059,7 @@ function generateGlobalReport(){
  const dateNow=new Date().toLocaleDateString(currentLang==='ar'?'ar-DZ':currentLang==='en'?'en-GB':'fr-FR');
  const detail=mode==='detailed'&&!compact;
  const show=(key)=>sections.includes(key);
+ await prepareReportMediaCache(p,data,includePhotos,sections,detail);
  if(pendingOnly){
   data.visits=data.visits.filter(({visit})=>['nonconforme','reserve'].includes(visit.status));
   data.rec=data.rec.filter(x=>x.status==='pending');data.etp=data.etp.filter(x=>x.status==='pending');data.bet=data.bet.filter(x=>x.status==='pending');
@@ -2945,7 +3067,7 @@ function generateGlobalReport(){
  }
  const filterLabel=[f.bloc&&`${rt('bloc')}: ${f.bloc}`,f.floor&&`${rt('floor')}: ${f.floor==='__ALL_FLOORS__'?rt('allFloors'):f.floor}`,f.facade&&`${rt('facade')}: ${f.facade==='__ALL_FACADES__'?rt('allFacades'):f.facade}`,f.trade&&`${rt('trade')}: ${f.trade}`].filter(Boolean).join(' · ');
  let html=`<article class="report-document" dir="${I18N[currentLang].dir}" lang="${currentLang}" data-report-document>
- <header class="report-cover"><div style="font-size:12px;font-weight:800;color:#1d5fa8;letter-spacing:2px">BÂTI PILOT</div><h1>${rt('cover')}</h1><h2 style="border:0;margin:5px 0">${reportEsc(p.name||'—')}</h2>${includePhotos&&p.image?`<img src="${p.image}" alt="Project image">`:''}<div class="report-meta-grid">
+ <header class="report-cover"><div style="font-size:12px;font-weight:800;color:#1d5fa8;letter-spacing:2px">BÂTI PILOT</div><h1>${rt('cover')}</h1><h2 style="border:0;margin:5px 0">${reportEsc(p.name||'—')}</h2>${includePhotos&&p.image?(isMediaRef(p.image)?reportMediaCache.get(p.image):p.image)?`<img src="${isMediaRef(p.image)?reportMediaCache.get(p.image):p.image}" alt="Project image">`:'' :''}<div class="report-meta-grid">
  ${[[rt('owner'),p.owner],[rt('company'),p.company],[rt('follow'),p.followEngineer],[rt('study'),p.studyEngineer],[rt('periodLabel'),dateLabel],[rt('created'),dateNow]].filter(x=>x[1]).map(x=>`<div class="report-meta"><b>${reportEsc(x[0])}</b><div>${reportEsc(x[1])}</div></div>`).join('')}
  </div>${filterLabel?`<p class="report-muted">${reportEsc(filterLabel)}</p>`:''}</header>`;
  if(show('synthesis')){
@@ -3122,7 +3244,7 @@ async function showStorage(){const info=$('storageInfo');info.classList.remove('
 function downloadJSON(data,name){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 async function exportProject(){
  try{
-  const all=await getAll();
+  const stored=await getAll(),all=await Promise.all(stored.map(project=>hydrateProjectMedia(project)));
   downloadJSON({format:'BatiPilot',version:2,exportedAt:new Date().toISOString(),projects:all},'BATI_PILOT_all_projects.json');
   toast(t('jsonExported'));
  }catch(err){console.error(err);toast(t('storageErr'))}
@@ -3158,9 +3280,11 @@ async function importFile(file){
    prepared.push(incoming);
    if(firstId===null)firstId=incoming.id;
   }
-  // One read-write transaction makes the batch all-or-nothing.
+  // One read-write transaction makes the batch all-or-nothing, including image blobs.
+  const importedMedia=[];prepared.forEach(project=>externalizeProjectMedia(project,importedMedia));
   await new Promise((resolve,reject)=>{
-   const transaction=db.transaction(STORE,'readwrite'),store=transaction.objectStore(STORE);
+   const transaction=db.transaction(importedMedia.length?[STORE,MEDIA_STORE]:[STORE],'readwrite'),store=transaction.objectStore(STORE);
+   importedMedia.forEach(record=>transaction.objectStore(MEDIA_STORE).put(record));
    prepared.forEach(project=>store.put(project));
    transaction.oncomplete=()=>resolve();
    transaction.onerror=()=>reject(transaction.error||new Error('Import transaction failed'));
@@ -3197,8 +3321,9 @@ $('newProjectBtn').onclick=startCreate;$('refreshBtn').onclick=()=>{if(!activeId
     );
   }
 };
-$('modalClose').onclick=closeModal;$('modalOverlay').addEventListener('click',e=>{if(e.target===$('modalOverlay'))closeModal()});
+$('modalClose').onclick=closeModal;$('modalOverlay').addEventListener('click',e=>{if(e.target===$('modalOverlay'))closeModal()});$('lightbox').addEventListener('click',e=>{if(e.target===$('lightbox'))closeMediaLightbox()});
 document.addEventListener('click',e=>{const button=e.target.closest('[data-page-history-action]');if(!button)return;const toolbar=button.closest('.page-history-controls'),page=toolbar?.dataset.pageHistory;if(!page||page!==activeTab)return;const action=button.dataset.pageHistoryAction;if(action==='undo')applyPageHistory('undo');else if(action==='redo')applyPageHistory('redo');else if(action==='history')openPageHistory(page)});
+document.addEventListener('keydown',e=>{if(e.key!=='Enter'&&e.key!==' ')return;const target=e.target.closest('.photo-placeholder[data-cp-act],.photo-placeholder[data-pv-action],.coord-photo-placeholder');if(target){e.preventDefault();target.click()}});
 $('settingsBtn').onclick=openSettings;$('editProjectBtn').onclick=openEditModal;$('projectSelect').onchange=async e=>{await persistScratchpadState();activeId=e.target.value;renderActiveView()};
 $('changeImageBtn').onclick=()=>$('imageFileInput').click();$('imageFileInput').onchange=async e=>{const f=e.target.files[0],p=activeProject();if(!f||!p)return;try{p.image=await compressImage(f,800,.78);p.updatedAt=new Date().toISOString();await put(p);await loadProjects();renderActiveView();toast(t('imgUpdated'))}catch(err){toast(t('imageLoadErr'))}e.target.value=''};
 $('welcomeImport').onchange=e=>importFile(e.target.files[0]);
