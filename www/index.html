@@ -128,6 +128,16 @@ button:active{transform:translateY(0)}
 .dashboard{max-width:1400px;margin:auto;padding:28px 24px 60px}
 .dash-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
 .dash-title h2{margin:0;color:var(--navy);font-size:22px;font-weight:800}
+.page-title-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.page-history-controls{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.page-history-controls button{padding:6px 9px;font-size:11px;min-height:30px;white-space:nowrap}
+.page-history-controls button:disabled{opacity:.42;cursor:not-allowed;transform:none}
+.page-history-count{font-size:10px;color:var(--muted);font-weight:700}
+.history-log-list{display:grid;gap:8px;max-height:55vh;overflow:auto}
+.history-log-item{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#f8fafc}
+.history-log-item strong{display:block;font-size:12px;color:var(--navy)}
+.history-log-item small{display:block;margin-top:3px;color:var(--muted);font-size:10px}
+.history-log-action{flex:0 0 auto;font-size:10px;font-weight:800;color:var(--blue)}
 .muted{color:var(--muted);font-size:12px}
 
 .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}
@@ -272,6 +282,9 @@ button:active{transform:translateY(0)}
   .subgrid{grid-template-columns:1fr}
   .dashboard{padding:20px 14px}
   .dash-title{align-items:flex-start;flex-direction:column;gap:8px}
+  .page-title-line{align-items:flex-start;gap:8px}
+  .page-history-controls{gap:5px}
+  .page-history-controls button{padding:6px 8px;font-size:10px}
   .project-name{max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
 
@@ -1230,15 +1243,112 @@ const REPORT_SECTION_LABELS={synthesis:'synthesis',advancement:'advancement',com
 const DB_NAME='BatiPilotDB', DB_VERSION=1, STORE='projects';
 let db=null, projects=[], activeId=null, formMode='create', editingId=null, pendingImage=null;
 let formBlocDetails=[],formRemovedBlocIds=[], activeTab='dashboard', expandedVisits=new Set();
+const PAGE_HISTORY_LIMIT=80, PAGE_HISTORY_EVENT_LIMIT=160;
+const pageHistoryStore=new Map(), historyBaseline=new Map();
+let historyBusy=false;
 const $=id=>document.getElementById(id);
 const uid=(p='p_')=> p+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
 const safe=(s='')=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
+function historyClone(value){return value===undefined?undefined:JSON.parse(JSON.stringify(value))}
+function historyStoreKey(projectId,page){return `${projectId}::${page}`}
+function historyPageIsEditable(page){return ['checklist','pv','rec','etp','bet','scratchpad'].includes(page)}
+function historyPageTitle(page){return ({dashboard:'Dashboard',checklist:'Liste de contrôle',charts:'Courbes d’Avancement',pv:'PV de visite chantier',rec:'Recommandation client',etp:'Point à trancher avec ETP',bet:'Décision BET',globalReport:'Rapport Global du Projet',scratchpad:'Espace de dessin'})[page]||page}
+function historyState(projectId,page){const key=historyStoreKey(projectId,page);if(!pageHistoryStore.has(key))pageHistoryStore.set(key,{undo:[],redo:[],events:[]});return pageHistoryStore.get(key)}
+function historySnapshotAt(obj,path){let cur=obj;for(const part of path){if(!cur||!Object.prototype.hasOwnProperty.call(cur,part))return {exists:false};cur=cur[part]}return {exists:true,value:historyClone(cur)}}
+function historySameSnapshot(a,b){return a.exists===b.exists&&(!a.exists||JSON.stringify(a.value)===JSON.stringify(b.value))}
+function historyChangesForPage(before,after,page){
+ const fields=page==='checklist'?['blocDetails','checklist','blocks','floors','facades','buildingTrades','facadeTrades']:
+  page==='pv'?['pvReports','pvWorkerMetiers','pvMetiers']:
+  page==='scratchpad'?['scratchpad']:[];
+ const paths=fields.map(key=>[key]);
+ if(['rec','etp','bet'].includes(page))paths.push(['coordinationData',page]);
+ return paths.map(path=>({path,before:historySnapshotAt(before,path),after:historySnapshotAt(after,path)})).filter(change=>!historySameSnapshot(change.before,change.after));
+}
+function historyDescribe(page,changes){
+ const paths=changes.map(x=>x.path.join('.'));
+ if(page==='checklist'){
+  if(paths.includes('checklist'))return 'Modification des points de contrôle, visites ou observations';
+  if(paths.includes('blocDetails'))return 'Modification des métiers, emplacements ou avancement';
+  return 'Mise à jour de la liste de contrôle';
+ }
+ if(page==='pv')return paths.includes('pvWorkerMetiers')||paths.includes('pvMetiers')?'Gestion des métiers du PV':'Création, modification ou suppression d’un PV';
+ if(['rec','etp','bet'].includes(page))return 'Modification — '+historyPageTitle(page);
+ if(page==='scratchpad')return 'Modification du dessin ou du zoom';
+ return 'Modification des données';
+}
+function historyAddEvent(state,action,label){state.events.unshift({action,label,at:new Date().toISOString()});if(state.events.length>PAGE_HISTORY_EVENT_LIMIT)state.events.length=PAGE_HISTORY_EVENT_LIMIT}
+function historyCaptureSavedProject(project,page){
+ const after=historyClone(project),before=historyBaseline.get(project.id);
+ if(before&&historyPageIsEditable(page)){
+  const changes=historyChangesForPage(before,after,page);
+  if(changes.length){
+   const state=historyState(project.id,page),label=historyDescribe(page,changes);
+   state.undo.push({label,changes,at:new Date().toISOString()});
+   if(state.undo.length>PAGE_HISTORY_LIMIT)state.undo.shift();
+   state.redo=[];historyAddEvent(state,'Modification',label);
+  }
+ }
+ historyBaseline.set(project.id,after);
+ updatePageHistoryControls();
+}
+function updatePageHistoryControls(){
+ document.querySelectorAll('.page-history-controls').forEach(toolbar=>{
+  const page=toolbar.dataset.pageHistory,projectId=activeId,state=projectId?historyState(projectId,page):{undo:[],redo:[],events:[]};
+  const undo=toolbar.querySelector('[data-page-history-action="undo"]'),redo=toolbar.querySelector('[data-page-history-action="redo"]'),count=toolbar.querySelector('[data-page-history-count]');
+  if(undo)undo.disabled=historyBusy||!state.undo.length;
+  if(redo)redo.disabled=historyBusy||!state.redo.length;
+  if(count)count.textContent=String(state.events.length);
+ });
+}
+function renderPageHistoryControls(){
+ const viewId=({dashboard:'dashboardView',checklist:'checklistView',charts:'chartsView',pv:'pvView',rec:'coordView',etp:'coordView',bet:'coordView',globalReport:'globalReportView',scratchpad:'scratchpadView'})[activeTab];
+ const view=viewId?$(viewId):null,head=view?.querySelector('.dash-title'),titleBlock=head?.firstElementChild,h2=titleBlock?.querySelector(':scope > h2');
+ if(!head||!titleBlock||!h2)return;
+ let line=titleBlock.querySelector(':scope > .page-title-line');
+ if(!line){line=document.createElement('div');line.className='page-title-line';titleBlock.insertBefore(line,h2);line.appendChild(h2)}
+ let toolbar=line.querySelector('.page-history-controls');
+ if(!toolbar){toolbar=document.createElement('div');toolbar.className='page-history-controls';line.appendChild(toolbar)}
+ toolbar.dataset.pageHistory=activeTab;
+ toolbar.innerHTML=`<button type="button" class="secondary small" data-page-history-action="undo" title="Annuler la dernière opération">↶ Annuler</button><button type="button" class="secondary small" data-page-history-action="redo" title="Rétablir la dernière opération annulée">↷ Rétablir</button><button type="button" class="secondary small" data-page-history-action="history">Historique <span class="page-history-count" data-page-history-count>0</span></button>`;
+ updatePageHistoryControls();
+}
+function openPageHistory(page){
+ const state=historyState(activeId,page),rows=state.events;
+ const body=rows.length?`<div class="history-log-list">${rows.map(item=>`<div class="history-log-item"><div><strong>${safe(item.label)}</strong><small>${safe(new Date(item.at).toLocaleString())}</small></div><span class="history-log-action">${safe(item.action)}</span></div>`).join('')}</div>`:`<div class="empty-state">Aucune opération enregistrée dans cette page pour le moment.</div>`;
+ openModal('Historique — '+historyPageTitle(page),body);
+}
+function historyApplySnapshot(project,path,snapshot){
+ if(path.length===1){if(snapshot.exists)project[path[0]]=historyClone(snapshot.value);else delete project[path[0]];return}
+ let parent=project;
+ for(let i=0;i<path.length-1;i++){const key=path[i];if(!parent[key]||typeof parent[key]!=='object')parent[key]={};parent=parent[key]}
+ const key=path[path.length-1];if(snapshot.exists)parent[key]=historyClone(snapshot.value);else delete parent[key];
+ if(path[0]==='coordinationData'&&project.coordinationData&&Object.keys(project.coordinationData).length===0)delete project.coordinationData;
+}
+async function applyPageHistory(direction){
+ const page=activeTab,project=activeProject();if(!project||!historyPageIsEditable(page)||historyBusy)return;
+ const state=historyState(project.id,page),source=direction==='undo'?state.undo:state.redo,target=direction==='undo'?state.redo:state.undo;
+ if(!source.length)return;
+ const entry=source[source.length-1],working=historyClone(project);
+ historyBusy=true;updatePageHistoryControls();
+ try{
+  for(const change of entry.changes)historyApplySnapshot(working,change.path,direction==='undo'?change.before:change.after);
+  working.updatedAt=new Date().toISOString();
+  await put(working,{skipHistory:true});
+  source.pop();target.push(entry);
+  const action=direction==='undo'?'Annuler':'Rétablir';historyAddEvent(state,action,entry.label);
+  await loadProjects();
+  if(page==='scratchpad'&&typeof scratchProjectId!=='undefined')scratchProjectId=null;
+  if(activeTab===page)renderActiveView();
+  toast(direction==='undo'?(currentLang==='ar'?'تم التراجع عن العملية':currentLang==='en'?'Operation undone':'Opération annulée'):(currentLang==='ar'?'تمت إعادة العملية':currentLang==='en'?'Operation restored':'Opération rétablie'));
+ }catch(error){console.error('Page history operation failed:',error);toast(t('dbSaveErr'))}
+ finally{historyBusy=false;updatePageHistoryControls()}
+}
 function toast(msg){$('toast').textContent=msg;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),2800)}
 function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const d=req.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'id'})};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 function tx(mode='readonly'){return db.transaction(STORE,mode).objectStore(STORE)}
 function getAll(){return new Promise((resolve,reject)=>{const r=tx().getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error)})}
-function put(p){return new Promise((resolve,reject)=>{const r=tx('readwrite').put(p);r.onsuccess=()=>resolve();r.onerror=()=>reject(r.error)})}
-function remove(id){return new Promise((resolve,reject)=>{const r=tx('readwrite').delete(id);r.onsuccess=()=>resolve();r.onerror=()=>reject(r.error)})}
+function put(p,options={}){const pageAtWrite=options.historyPage||activeTab;return new Promise((resolve,reject)=>{const r=tx('readwrite').put(p);r.onsuccess=()=>{if(options.skipHistory)historyBaseline.set(p.id,historyClone(p));else historyCaptureSavedProject(p,pageAtWrite);resolve()};r.onerror=()=>reject(r.error)})}
+function remove(id){return new Promise((resolve,reject)=>{const r=tx('readwrite').delete(id);r.onsuccess=()=>{historyBaseline.delete(id);for(const key of [...pageHistoryStore.keys()])if(key.startsWith(id+'::'))pageHistoryStore.delete(key);resolve()};r.onerror=()=>reject(r.error)})}
 function showScreen(id){['welcome','createPage','appPage'].forEach(x=>$(x).classList.toggle('hidden',x!==id))}
 
 function formHTML(p={}){
@@ -1548,7 +1658,7 @@ async function saveProjectFromForm(){
  // Keep the original key when editing; never create a second project accidentally.
  if(isEdit)p.id=targetId;
  try{
-  await put(p);
+  await put(p,{skipHistory:true});
   await loadProjects();
   activeId=p.id;
   renderProjectSelect();
@@ -1558,7 +1668,7 @@ async function saveProjectFromForm(){
  }catch(e){console.error('Project save failed:',e);toast(t('dbSaveErr'))}
 }
 
-async function loadProjects(){projects=await getAll();for(const p of projects){const before=JSON.stringify(p);syncProjectArraysFromBlocs(p);if(JSON.stringify(p)!==before){try{await put(p)}catch(e){console.error('Project migration failed',p.id,e)}}}projects.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));renderProjectSelect()}
+async function loadProjects(){projects=await getAll();for(const p of projects){const before=JSON.stringify(p);syncProjectArraysFromBlocs(p);if(JSON.stringify(p)!==before){try{await put(p,{skipHistory:true})}catch(e){console.error('Project migration failed',p.id,e)}}}projects.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));for(const p of projects)historyBaseline.set(p.id,historyClone(p));renderProjectSelect();updatePageHistoryControls()}
 function renderProjectSelect(){$('projectSelect').innerHTML=projects.map(p=>`<option value="${safe(p.id)}">${safe(p.name)}${p.code?' — '+safe(p.code):''}</option>`).join('');if(activeId&&projects.some(p=>p.id===activeId))$('projectSelect').value=activeId}
 function activeProject(){return projects.find(p=>p.id===activeId)}
 function renderHeader(p){$('headerProjectName').textContent=p.name;$('headerProjectCode').textContent=p.code||t('noCode');$('headerThumb').innerHTML=p.image?`<img src="${p.image}" alt="Project">`:'🏗️';$('dashProjectMeta').textContent=[p.code,p.company,p.owner].filter(Boolean).join(' · ')||t('dashMetaDefault')}
@@ -1592,6 +1702,7 @@ function renderActiveView(){
  else if(['rec','etp','bet'].includes(activeTab))renderCoordPage();
  else if(activeTab==='globalReport'){reportInitUI();applyReportLanguage()}
  else if(activeTab==='scratchpad'){initScratchpad()}
+ renderPageHistoryControls();
 }
 
 // Helpers for control-point visits and progress (required by dashboard/checklist rendering).
@@ -2290,7 +2401,7 @@ function ensurePvData(p){
   p.pvWorkerMetiers=[...new Set([...DEFAULT_PV_METIERS,...legacyCustom,...recordedWorkers])];
   changed=true;
  }
- if(changed){p.updatedAt=new Date().toISOString();put(p).catch(err=>console.error('PV initialization:',err))}
+ if(changed){p.updatedAt=new Date().toISOString();put(p,{skipHistory:true}).catch(err=>console.error('PV initialization:',err))}
  return p;
 }
 function pvBlockOptions(p){
@@ -2992,6 +3103,7 @@ $('newProjectBtn').onclick=startCreate;$('refreshBtn').onclick=()=>{if(!activeId
   }
 };
 $('modalClose').onclick=closeModal;$('modalOverlay').addEventListener('click',e=>{if(e.target===$('modalOverlay'))closeModal()});
+document.addEventListener('click',e=>{const button=e.target.closest('[data-page-history-action]');if(!button)return;const toolbar=button.closest('.page-history-controls'),page=toolbar?.dataset.pageHistory;if(!page||page!==activeTab)return;const action=button.dataset.pageHistoryAction;if(action==='undo')applyPageHistory('undo');else if(action==='redo')applyPageHistory('redo');else if(action==='history')openPageHistory(page)});
 $('settingsBtn').onclick=openSettings;$('editProjectBtn').onclick=openEditModal;$('projectSelect').onchange=async e=>{await persistScratchpadState();activeId=e.target.value;renderActiveView()};
 $('changeImageBtn').onclick=()=>$('imageFileInput').click();$('imageFileInput').onchange=async e=>{const f=e.target.files[0],p=activeProject();if(!f||!p)return;try{p.image=await compressImage(f,800,.78);p.updatedAt=new Date().toISOString();await put(p);await loadProjects();renderActiveView();toast(t('imgUpdated'))}catch(err){toast(t('imageLoadErr'))}e.target.value=''};
 $('welcomeImport').onchange=e=>importFile(e.target.files[0]);
