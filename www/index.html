@@ -2743,7 +2743,25 @@ async function initScratchpad(){
   $('scratchZoomReset').onclick=()=>{scratchZoom=1;scratchPan={x:0,y:0};render();persistScratchpadState()};
   $('scratchUndo').onclick=()=>{if(scratchStrokes.length)scratchStrokes.pop();render();$('scratchDownloadWrap').classList.add('hidden');persistScratchpadState()};
   $('scratchClear').onclick=()=>{scratchStrokes=[];scratchCurrentStroke=null;render();$('scratchDownloadWrap').classList.add('hidden');persistScratchpadState()};
-  $('scratchSave').onclick=()=>{$('scratchDownload').href=canvas.toDataURL('image/png');$('scratchDownloadWrap').classList.remove('hidden')};
+  $('scratchSave').onclick=()=>{
+   $('scratchDownload').href=canvas.toDataURL('image/png');
+   $('scratchDownloadWrap').classList.remove('hidden');
+  };
+  $('scratchDownload').onclick=async e=>{
+   const isNative=!!(window.Capacitor&&typeof window.Capacitor.isNativePlatform==='function'&&window.Capacitor.isNativePlatform());
+   if(!isNative)return;
+   e.preventDefault();
+   const link=$('scratchDownload');link.style.pointerEvents='none';
+   try{
+    const bridge=await import('./printer-bridge.js');
+    const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+    await bridge.savePng(link.href,`BATI-PILOT-Croquis-${stamp}.png`);
+    toast(currentLang==='fr'?'Image prête : choisissez où l’enregistrer ou la partager.':'الصورة جاهزة: اختر مكان حفظها أو مشاركتها.');
+   }catch(error){
+    console.error('[BATI PILOT] PNG export failed:',error);
+    toast(currentLang==='fr'?'Impossible d’enregistrer le croquis PNG.':'تعذر حفظ الرسم بصيغة PNG.');
+   }finally{link.style.pointerEvents=''}
+  };
   scratchInitialized=true;window.addEventListener('resize',resize);
  }
  resize();
