@@ -72,3 +72,38 @@ export async function saveBase64File(
     dialogTitle: 'Enregistrer ou partager le fichier Excel',
   });
 }
+
+export async function saveJsonFile(
+  jsonText,
+  fileName = 'BATI_PILOT_all_projects.json'
+) {
+  if (typeof jsonText !== 'string' || !jsonText.length) {
+    throw new Error('Invalid JSON file data');
+  }
+
+  // Validate the payload before writing it to the device.
+  JSON.parse(jsonText);
+
+  const safeName = String(
+    fileName || 'BATI_PILOT_all_projects.json'
+  ).replace(/[^\w.\-]/g, '_');
+
+  await Filesystem.writeFile({
+    path: safeName,
+    data: jsonText,
+    directory: Directory.Cache,
+    recursive: true,
+  });
+
+  const file = await Filesystem.getUri({
+    path: safeName,
+    directory: Directory.Cache,
+  });
+
+  await Share.share({
+    title: 'BATI PILOT - Export JSON',
+    text: 'Base de données exportée depuis BATI PILOT',
+    files: [file.uri],
+    dialogTitle: 'Enregistrer ou partager la base de données JSON',
+  });
+}
