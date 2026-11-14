@@ -2115,7 +2115,22 @@ async function exportChecklistExcel(){
  if(!wb.Workbook.Sheets[0])wb.Workbook.Sheets[0]={Hidden:0};
  if(!wb.Workbook.Sheets[1])wb.Workbook.Sheets[1]={Hidden:1};else wb.Workbook.Sheets[1].Hidden=1;
  const file=(p.code||p.name||'projet').replace(/[^a-z0-9-_]/gi,'_');
- XLSX.writeFile(wb,`Checklist_${file}.xlsx`);
+ const fileName=`Checklist_${file}.xlsx`;
+ try{
+  const isNative=!!(window.Capacitor&&typeof window.Capacitor.isNativePlatform==='function'&&window.Capacitor.isNativePlatform());
+  if(isNative){
+   const base64=XLSX.write(wb,{bookType:'xlsx',type:'base64'});
+   const bridge=await import('./printer-bridge.js');
+   await bridge.saveBase64File(base64,fileName,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+   toast(currentLang==='fr'?'Fichier Excel prêt : choisissez où l’enregistrer ou le partager.':'ملف Excel جاهز: اختر مكان حفظه أو مشاركته.');
+  }else{
+   XLSX.writeFile(wb,fileName);
+   toast(currentLang==='fr'?'Export Excel terminé.':'تم تصدير ملف Excel بنجاح.');
+  }
+ }catch(error){
+  console.error('[BATI PILOT] Excel export failed:',error);
+  toast(currentLang==='fr'?'Échec de l’export Excel : vérifiez le stockage ou le partage.':'تعذر تصدير Excel. تحقق من مساحة التخزين أو خيارات المشاركة.');
+ }
 }
 $('excelExportBtn').onclick=exportChecklistExcel;
 
