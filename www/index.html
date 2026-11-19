@@ -3251,10 +3251,16 @@ async function exportProject(){
 
   if(isNative){
    const bridge=await import('./printer-bridge.js');
-   await bridge.saveJsonFile(JSON.stringify(exportData,null,2),fileName);
-   toast(currentLang==='fr'
-    ?'Fichier JSON prêt : choisissez où l’enregistrer ou le partager.'
-    :'ملف JSON جاهز: اختر مكان حفظه أو مشاركته.');
+   const saveResult=await bridge.saveJsonFile(JSON.stringify(exportData,null,2),fileName);
+   if(saveResult&&saveResult.savedToDocuments){
+    toast(currentLang==='fr'
+     ?'Partage indisponible : copie JSON enregistrée dans Documents.'
+     :'تعذرت المشاركة؛ تم حفظ نسخة JSON في مجلد Documents.');
+   }else{
+    toast(currentLang==='fr'
+     ?'Fichier JSON prêt : choisissez où l’enregistrer ou le partager.'
+     :'ملف JSON جاهز: اختر مكان حفظه أو مشاركته.');
+   }
   }else{
    downloadJSON(exportData,fileName);
    toast(t('jsonExported'));
