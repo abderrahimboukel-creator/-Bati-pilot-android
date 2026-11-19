@@ -81,13 +81,13 @@ export async function saveJsonFile(
     throw new Error('Invalid JSON file data');
   }
 
-  // Validate the payload before writing it to the device.
+  // Validate before touching device storage.
   JSON.parse(jsonText);
 
-  const safeName = String(
-    fileName || 'BATI_PILOT_all_projects.json'
-  ).replace(/[^\w.\-]/g, '_');
+  const safeName = String(fileName || 'BATI_PILOT_all_projects.json')
+    .replace(/[^\\w.\\-]/g, '_');
 
+  // Cache is reliable for sharing a temporary file with Android's chooser.
   await Filesystem.writeFile({
     path: safeName,
     data: jsonText,
@@ -95,15 +95,39 @@ export async function saveJsonFile(
     recursive: true,
   });
 
-  const file = await Filesystem.getUri({
+  const cachedFile = await Filesystem.getUri({
     path: safeName,
     directory: Directory.Cache,
   });
 
-  await Share.share({
-    title: 'BATI PILOT - Export JSON',
-    text: 'Base de données exportée depuis BATI PILOT',
-    files: [file.uri],
-    dialogTitle: 'Enregistrer ou partager la base de données JSON',
-  });
+  try {
+    await Share.share({
+      title: 'BATI PILOT - Export JSON',
+      text: 'Base de données exportée depuis BATI PILOT',
+      files: [cachedFile.uri],
+      dialogTitle: 'Enregistrer ou partager la base de données JSON',
+    });
+    return { shared: true, savedToDocuments: false, fileName: safeName };
+  } catch (shareError) {
+    // If Android's share sheet is unavailable, keep a persistent copy
+    // in Documents instead of losing the export.
+    try {
+      await Filesystem.writeFile({
+        path: safeName,
+        data: jsonText,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+      return {
+        shared: false,
+        savedToDocuments: true,
+        fileName: safeName,
+      };
+    } catch (storageError) {
+      throw new Error(
+        `JSON share failed: ${shareError?.message || shareError}; ` +
+        `Documents save failed: ${storageError?.message || storageError}`
+      );
+    }
+  }
 }
