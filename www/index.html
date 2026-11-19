@@ -1259,7 +1259,7 @@ let historyBusy=false;
 const $=id=>document.getElementById(id);
 const uid=(p='p_')=> p+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
 const safe=(s='')=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]||c));
-function historyClone(value){return value===undefined?undefined:JSON.parse(JSON.stringify(value))}
+function historyClone(value){if(value===undefined)return undefined;if(typeof structuredClone==='function'){try{return structuredClone(value)}catch(error){console.warn('[BATI PILOT] structuredClone fallback:',error)}}return JSON.parse(JSON.stringify(value))}
 function historyStoreKey(projectId,page){return `${projectId}::${page}`}
 function historyPageIsEditable(page){return ['checklist','pv','rec','etp','bet','scratchpad'].includes(page)}
 function historyPageTitle(page){return ({dashboard:'Dashboard',checklist:'Liste de contrôle',charts:'Courbes d’Avancement',pv:'PV de visite chantier',rec:'Recommandation client',etp:'Point à trancher avec ETP',bet:'Décision BET',globalReport:'Rapport Global du Projet',scratchpad:'Espace de dessin'})[page]||page}
@@ -3241,35 +3241,66 @@ function openSettings(){openModal(t('settingsTitle'),`<div class="settings-list"
  $('showStorageBtn').onclick=showStorage;$('exportBtn').onclick=exportProject;$('modalImport').onchange=e=>importFile(e.target.files[0]);$('settingsNewBtn').onclick=()=>{closeModal();startCreate()};$('homeBtn').onclick=()=>{closeModal();showScreen('welcome')};$('deleteProjectBtn').onclick=deleteActiveProject;
 }
 async function showStorage(){const info=$('storageInfo');info.classList.remove('hidden');try{const all=await getAll();let bytes=new Blob([JSON.stringify(all)]).size;let estimate='';if(navigator.storage&&navigator.storage.estimate){const e=await navigator.storage.estimate();estimate=`<br>Quota: ${e.quota?Math.round(e.quota/1048576)+' MB':'—'} · Used: ${e.usage?Math.round(e.usage/1048576)+' MB':'—'}`}info.innerHTML=`DB: <b>${DB_NAME}</b><br>Projects: <b>${all.length}</b><br>JSON Size: <b>${(bytes/1024).toFixed(1)} KB</b>${estimate}<br>Storage: IndexedDB local` }catch(e){info.textContent=t('storageErr')}}
-function downloadJSON(data,name){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function downloadJSON(data,name){
+ const json=typeof data==='string'?data:JSON.stringify(data,null,2);
+ const blob=new Blob([json],{type:'application/json;charset=utf-8'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=name||'BATI_PILOT_backup.json';a.style.display='none';
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
 async function exportProject(){
+ let jsonText='',fileName='BATI_PILOT_all_projects.json';
  try{
-  const stored=await getAll(),all=await Promise.all(stored.map(project=>hydrateProjectMedia(project)));
+  // Read the latest committed IndexedDB records, then restore media references for a portable backup.
+  const stored=await getAll();
+  if(!Array.isArray(stored))throw new Error('IndexedDB did not return a project list.');
+  const all=await Promise.all(stored.map(async(project,index)=>{
+   if(!project||typeof project!=='object')throw new Error('Invalid project record at index '+index);
+   return await hydrateProjectMedia(project);
+  }));
   const exportData={format:'BatiPilot',version:2,exportedAt:new Date().toISOString(),projects:all};
-  const fileName='BATI_PILOT_all_projects.json';
-  const isNative=!!(window.Capacitor&&typeof window.Capacitor.isNativePlatform==='function'&&window.Capacitor.isNativePlatform());
+  jsonText=JSON.stringify(exportData,null,2);
+  if(typeof jsonText!=='string'||!jsonText.length)throw new Error('The backup is empty.');
+  // Validate the produced backup before handing it to Android or the browser.
+  const validation=JSON.parse(jsonText);
+  if(!validation||validation.format!=='BatiPilot'||!Array.isArray(validation.projects))throw new Error('The generated backup failed validation.');
 
+  const isNative=!!(window.Capacitor&&typeof window.Capacitor.isNativePlatform==='function'&&window.Capacitor.isNativePlatform());
   if(isNative){
-   const bridge=await import('./printer-bridge.js');
-   const saveResult=await bridge.saveJsonFile(JSON.stringify(exportData,null,2),fileName);
-   if(saveResult&&saveResult.savedToDocuments){
+   try{
+    const bridge=await import('./printer-bridge.js');
+    if(!bridge||typeof bridge.saveJsonFile!=='function')throw new Error('Native JSON save bridge is unavailable.');
+    const saveResult=await bridge.saveJsonFile(jsonText,fileName);
+    if(saveResult&&saveResult.savedToDocuments){
+     toast(currentLang==='fr'
+      ?'Partage indisponible : copie JSON enregistrée dans Documents.'
+      :'تعذرت المشاركة؛ تم حفظ نسخة JSON في مجلد Documents.');
+    }else{
+     toast(currentLang==='fr'
+      ?'Fichier JSON prêt : choisissez où l’enregistrer ou le partager.'
+      :'ملف JSON جاهز: اختر مكان حفظه أو مشاركته.');
+    }
+    return;
+   }catch(nativeError){
+    console.error('[BATI PILOT] Native JSON export failed; trying WebView download:',nativeError);
+    // Android share/filesystem plugins can be unavailable on some builds.
+    // Keep a browser-download fallback so a plugin failure does not abort backup creation.
+    downloadJSON(jsonText,fileName);
     toast(currentLang==='fr'
-     ?'Partage indisponible : copie JSON enregistrée dans Documents.'
-     :'تعذرت المشاركة؛ تم حفظ نسخة JSON في مجلد Documents.');
-   }else{
-    toast(currentLang==='fr'
-     ?'Fichier JSON prêt : choisissez où l’enregistrer ou le partager.'
-     :'ملف JSON جاهز: اختر مكان حفظه أو مشاركته.');
+     ?'Le partage Android a échoué. Téléchargement JSON alternatif lancé.'
+     :'تعذرت المشاركة عبر Android؛ تمت محاولة تنزيل ملف JSON كبديل.');
+    return;
    }
-  }else{
-   downloadJSON(exportData,fileName);
-   toast(t('jsonExported'));
   }
+  downloadJSON(jsonText,fileName);
+  toast(t('jsonExported'));
  }catch(err){
   console.error('[BATI PILOT] JSON export failed:',err);
+  const reason=String(err&&err.message?err.message:err).slice(0,100);
   toast(currentLang==='fr'
-   ?'Échec de l’export JSON : vérifiez le stockage ou les options de partage.'
-   :'تعذر تصدير JSON. تحقق من مساحة التخزين أو خيارات المشاركة.');
+   ?'Échec de l’export JSON : '+reason
+   :'تعذر تصدير JSON: '+reason);
  }
 }
 async function importFile(file){
