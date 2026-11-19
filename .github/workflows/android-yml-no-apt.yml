@@ -1,0 +1,88 @@
+name: Build BATI PILOT Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Validate project files
+        run: |
+          test -f package.json
+          test -f capacitor.config.json
+          test -f www/index.html
+          test -f printer-bridge-entry.js
+          test -f assets/bati-pilot-icon.png
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build native plugin bridge
+        run: |
+          npm run build:printer-bridge
+          test -s www/printer-bridge.js
+          node --check www/printer-bridge.js
+
+      - name: Create Android project when absent
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+
+      - name: Sync Capacitor plugins and web assets
+        run: npx cap sync android
+
+      - name: Generate BATI PILOT launcher icons without apt dependencies
+        run: |
+          # Avoid apt-get/ImageMagick downloads: Ubuntu mirror failures must not block the APK build.
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "android/app/src/main/res/mipmap-$density"
+            cp assets/bati-pilot-icon.png "android/app/src/main/res/mipmap-$density/ic_launcher.png"
+            cp assets/bati-pilot-icon.png "android/app/src/main/res/mipmap-$density/ic_launcher_round.png"
+          done
+          rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BATI-PILOT-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
