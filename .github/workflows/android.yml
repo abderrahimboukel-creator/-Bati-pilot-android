@@ -65,8 +65,20 @@ jobs:
 
       - name: Generate BATI PILOT launcher icons from original PNG
         run: |
-          sudo apt-get update
-          sudo apt-get install -y imagemagick
+          # Ubuntu mirror access can fail temporarily on hosted runners.
+          # Retry package index refresh and installation before failing the job.
+          for attempt in 1 2 3; do
+            echo "Installing ImageMagick (attempt ${attempt}/3)..."
+            if sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update && \
+               sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y imagemagick; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "ImageMagick installation failed after 3 attempts."
+              exit 1
+            fi
+            sleep 15
+          done
           for spec in "mdpi 48" "hdpi 72" "xhdpi 96" "xxhdpi 144" "xxxhdpi 192"; do
             set -- $spec
             density="$1"
