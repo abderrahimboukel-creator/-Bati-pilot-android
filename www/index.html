@@ -3410,7 +3410,7 @@ applyLanguage(currentLang);
 applyChartLanguage();
 applyReportLanguage();
 
-window.BatiPilotSyncAPI={getAll,loadProjects,hydrateProjectMedia,externalizeProjectMedia,getDB:()=>db,getStores:()=>({STORE,MEDIA_STORE})};
+window.BatiPilotSyncAPI={getAll,loadProjects,remove,put,hydrateProjectMedia,externalizeProjectMedia,getDB:()=>db,getStores:()=>({STORE,MEDIA_STORE})};
 (async()=>{try{db=await openDB();await loadProjects()}catch(e){console.error(e);toast(t('dbInitErr'))}})();
 })();
 </script>
