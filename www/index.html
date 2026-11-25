@@ -1467,11 +1467,11 @@ function put(p,options={}){
   if(mediaRecords.length){const mediaStore=transaction.objectStore(MEDIA_STORE);mediaRecords.forEach(record=>mediaStore.put(record));}
   projectStore.put(p);
   // Keep removed media records until the in-memory undo/redo window expires; undo may restore their references.
-  transaction.oncomplete=()=>{if(options.skipHistory){if(!options.skipBaseline)historyBaseline.set(p.id,historyClone(p))}else historyCaptureSavedProject(p,pageAtWrite);resolve()};
+  transaction.oncomplete=()=>{if(options.skipHistory){if(!options.skipBaseline)historyBaseline.set(p.id,historyClone(p))}else historyCaptureSavedProject(p,pageAtWrite);try{window.dispatchEvent(new CustomEvent('bp-local-change',{detail:{type:'save',id:p.id}}))}catch{}resolve()};
   transaction.onerror=()=>reject(transaction.error||new Error('Project save failed'));transaction.onabort=()=>reject(transaction.error||new Error('Project save aborted'));
  });
 }
-function remove(id){return new Promise((resolve,reject)=>{const transaction=db.transaction([STORE,MEDIA_STORE],'readwrite');transaction.objectStore(STORE).delete(id);const keys=transaction.objectStore(MEDIA_STORE).index('projectId').openKeyCursor(IDBKeyRange.only(id));keys.onsuccess=()=>{const cursor=keys.result;if(cursor){transaction.objectStore(MEDIA_STORE).delete(cursor.primaryKey);cursor.continue()}};transaction.oncomplete=()=>{historyBaseline.delete(id);for(const key of [...pageHistoryStore.keys()])if(key.startsWith(id+'::'))pageHistoryStore.delete(key);resolve()};transaction.onerror=()=>reject(transaction.error||new Error('Project deletion failed'));transaction.onabort=()=>reject(transaction.error||new Error('Project deletion aborted'))})}
+function remove(id){try{const k='bp_project_tombstones_v1',a=JSON.parse(localStorage.getItem(k)||'[]');if(!a.some(x=>String(x.id)===String(id)))a.push({id:String(id),deletedAt:new Date().toISOString()});localStorage.setItem(k,JSON.stringify(a));}catch(e){console.warn('Deletion sync queue:',e)}return new Promise((resolve,reject)=>{const transaction=db.transaction([STORE,MEDIA_STORE],'readwrite');transaction.objectStore(STORE).delete(id);const keys=transaction.objectStore(MEDIA_STORE).index('projectId').openKeyCursor(IDBKeyRange.only(id));keys.onsuccess=()=>{const cursor=keys.result;if(cursor){transaction.objectStore(MEDIA_STORE).delete(cursor.primaryKey);cursor.continue()}};transaction.oncomplete=()=>{historyBaseline.delete(id);for(const key of [...pageHistoryStore.keys()])if(key.startsWith(id+'::'))pageHistoryStore.delete(key);try{window.dispatchEvent(new CustomEvent('bp-local-change',{detail:{type:'delete',id}}))}catch{}resolve()};transaction.onerror=()=>reject(transaction.error||new Error('Project deletion failed'));transaction.onabort=()=>reject(transaction.error||new Error('Project deletion aborted'))})}
 function showScreen(id){['welcome','createPage','appPage'].forEach(x=>$(x).classList.toggle('hidden',x!==id))}
 
 function formHTML(p={}){
@@ -3367,7 +3367,7 @@ async function importFile(file){
    transaction.onerror=()=>reject(transaction.error||new Error('Import transaction failed'));
    transaction.onabort=()=>reject(transaction.error||new Error('Import transaction aborted'));
   });
-  await loadProjects();activeId=firstId;closeModal();renderActiveView();toast(t('jsonImported'));
+  await loadProjects();activeId=firstId;closeModal();renderActiveView();try{window.dispatchEvent(new CustomEvent('bp-local-change',{detail:{type:'import',ids:prepared.map(x=>x.id)}}))}catch{}toast(t('jsonImported'));
  }catch(e){console.error(e);toast((t('jsonInvalid')||'Invalid JSON')+' : '+String(e.message||'').slice(0,120))}
 }
 async function deleteActiveProject(){const p=activeProject();if(!p)return;if(!confirm(t('confirmDelProject').replace('{name}',p.name)))return;await remove(p.id);await loadProjects();activeId=projects[0]?.id||null;closeModal();if(activeId)renderActiveView();else showScreen('welcome');toast(t('projectDeleted'))}
@@ -3434,24 +3434,27 @@ body:not(.bp-login-gated) #bpCloudPanel{display:none!important;}#bpSyncActivity{
  const panel=document.getElementById('bpCloudPanel');const gate=()=>{document.body.classList.add('bp-login-gated');if(panel)panel.style.display='block';},showApp=()=>{document.body.classList.remove('bp-login-gated');if(panel)panel.style.display='none';};gate();
  if(!window.supabase?.createClient){status('SDK non chargé. Internet requis.');return;}
  const client=window.supabase.createClient(URL,KEY),email=()=>document.getElementById('bpCloudEmail').value.trim(),pass=()=>document.getElementById('bpCloudPassword').value;
- let syncBusy=false,channel=null,polling=null;
+ let syncBusy=false,channel=null,polling=null,localChangeTimer=null;
+ window.addEventListener('bp-local-change',e=>{activity('تغيير محلي محفوظ · تجهيز المزامنة…');if(localChangeTimer)clearTimeout(localChangeTimer);localChangeTimer=setTimeout(()=>cloudSync('مزامنة تغيير محلي'),700)});
  document.getElementById('bpCloudSignup').onclick=async()=>{if(!email()||pass().length<6){status('Entrez email et mot de passe (6 caractères minimum).');return}status('Création du compte…');let {data,error}=await client.auth.signUp({email:email(),password:pass()});status(error?error.message:'Compte créé. Vérifiez votre email si confirmation requise.');if(data?.session){showApp();await cloudSync('Connexion initiale');}};
  document.getElementById('bpCloudLogin').onclick=async()=>{status('Connexion…');let {data,error}=await client.auth.signInWithPassword({email:email(),password:pass()});if(error){status(error.message);return}showApp();status('Connecté · Synchronisation automatique');await cloudSync('Connexion');startRealtime();};
  async function cloudSync(reason='Synchronisation automatique'){if(syncBusy)return;syncBusy=true;activity(reason+' · vérification des projets…');try{
   let {data:{user},error:authError}=await client.auth.getUser();if(authError||!user){gate();activity('connexion nécessaire');return}
   const api=window.BatiPilotSyncAPI;if(!api){activity('initialisation des données…');return}let local=await api.getAll();
-  activity('envoi des projets locaux…');let {data:rows,error}=await client.from('bati_pilot_projects').select('*').eq('user_id',user.id);if(error)throw error;
+  activity('التحقق من المشاريع والحذف…');let {data:rows,error}=await client.from('bati_pilot_projects').select('*').eq('user_id',user.id);if(error)throw error;
   const cloudMap=new Map((rows||[]).map(r=>[String(r.project_key),r]));const localMap=new Map(local.map(p=>[String(p.id),p]));let toUpload=[];
-  const stamp=x=>{let v=x?.updatedAt||x?.updated_at||0;let n=Date.parse(v);return Number.isFinite(n)?n:0};
-  for(const p of local){const key=String(p.id),r=cloudMap.get(key);if(!r){let data=await api.hydrateProjectMedia(p);toUpload.push({user_id:user.id,project_key:key,project_data:data,updated_at:p.updatedAt||new Date().toISOString(),deleted_at:null});continue}
-    if(r.deleted_at)continue;const cp=r.project_data||{},lt=stamp(p),ct=Math.max(stamp(cp),stamp(r));if(lt>ct){let data=await api.hydrateProjectMedia(p);toUpload.push({user_id:user.id,project_key:key,project_data:data,updated_at:p.updatedAt||new Date().toISOString(),deleted_at:null})}
+  const stamp=x=>{let v=x?.updatedAt||x?.updated_at||x?.deletedAt||x?.deleted_at||0;let n=Date.parse(v);return Number.isFinite(n)?n:0};
+  let tombstones=[];try{tombstones=JSON.parse(localStorage.getItem('bp_project_tombstones_v1')||'[]')}catch{}
+  for(const tomb of tombstones){const key=String(tomb.id),r=cloudMap.get(key);if(r){if(!r.deleted_at||stamp(r.deleted_at)<stamp(tomb.deletedAt)){toUpload.push({...r,user_id:user.id,project_key:key,updated_at:tomb.deletedAt,deleted_at:tomb.deletedAt});cloudMap.set(key,{...r,deleted_at:tomb.deletedAt,updated_at:tomb.deletedAt})}}else{toUpload.push({user_id:user.id,project_key:key,project_data:{id:key,deleted:true},updated_at:tomb.deletedAt,deleted_at:tomb.deletedAt});cloudMap.set(key,{project_key:key,project_data:{id:key,deleted:true},updated_at:tomb.deletedAt,deleted_at:tomb.deletedAt})}}
+  for(const p of local){const key=String(p.id),r=cloudMap.get(key);if(tombstones.some(x=>String(x.id)===key))continue;if(r?.deleted_at)continue;if(!r){let data=await api.hydrateProjectMedia(p);toUpload.push({user_id:user.id,project_key:key,project_data:data,updated_at:p.updatedAt||new Date().toISOString(),deleted_at:null});continue}
+    const cp=r.project_data||{},lt=stamp(p),ct=Math.max(stamp(cp),stamp(r));if(lt>ct){let data=await api.hydrateProjectMedia(p);toUpload.push({user_id:user.id,project_key:key,project_data:data,updated_at:p.updatedAt||new Date().toISOString(),deleted_at:null})}
   }
-  if(toUpload.length){activity('رفع '+toUpload.length+' مشروع/تحديث…');let {error:e}=await client.from('bati_pilot_projects').upsert(toUpload,{onConflict:'user_id,project_key'});if(e)throw e}
+  if(toUpload.length){activity('رفع تحديثات وحذف…');let {error:e}=await client.from('bati_pilot_projects').upsert(toUpload,{onConflict:'user_id,project_key'});if(e)throw e}
   activity('استقبال تحديثات الجهاز الآخر…');let {data:latest,error:e2}=await client.from('bati_pilot_projects').select('*').eq('user_id',user.id);if(e2)throw e2;
-  let pulled=0;for(const r of (latest||[])){if(r.deleted_at)continue;const key=String(r.project_key),cp=r.project_data;if(!cp)continue;const lp=localMap.get(key);if(lp&&stamp(lp)>=Math.max(stamp(cp),stamp(r)))continue;
+  let pulled=0,deletedPulled=0;for(const r of (latest||[])){const key=String(r.project_key);if(r.deleted_at){if(localMap.has(key)){await api.remove(localMap.get(key).id);deletedPulled++;}continue}const cp=r.project_data;if(!cp)continue;const lp=localMap.get(key);if(lp&&stamp(lp)>=Math.max(stamp(cp),stamp(r)))continue;
     const project={...cp};const records=[];api.externalizeProjectMedia(project,records);const stores=api.getStores();await new Promise((resolve,reject)=>{const database=api.getDB();const tr=database.transaction(records.length?[stores.STORE,stores.MEDIA_STORE]:[stores.STORE],'readwrite');tr.objectStore(stores.STORE).put(project);records.forEach(x=>tr.objectStore(stores.MEDIA_STORE).put(x));tr.oncomplete=resolve;tr.onerror=()=>reject(tr.error)});pulled++;
   }
-  await api.loadProjects();activity('مزامنة ناجحة · '+(toUpload.length?'إرسال '+toUpload.length+' تحديث':'لا توجد تغييرات مرسلة')+' · '+(pulled?'استقبال '+pulled+' مشروع':'البيانات محدثة'));
+  await api.loadProjects();activity('مزامنة ناجحة · '+(toUpload.length?'إرسال '+toUpload.length+' تحديث/حذف':'لا تغييرات مرسلة')+' · '+(deletedPulled?'حذف '+deletedPulled+' مشروع محلياً':'')+' · '+(pulled?'استقبال '+pulled+' مشروع':'البيانات محدثة'));
  }catch(e){console.error(e);activity('تعذر المزامنة · '+(e.message||e));}finally{syncBusy=false}}
  function startRealtime(){if(channel)return;channel=client.channel('bati-pilot-live-sync').on('postgres_changes',{event:'*',schema:'public',table:'bati_pilot_projects'},payload=>{activity('الجهاز الآخر غيّر بيانات مشروع · تحديث البيانات…');cloudSync('تحديث من جهاز آخر');}).subscribe(state=>{if(state==='SUBSCRIBED')activity('متصل · مراقبة تحديثات الجهاز الآخر');});if(!polling)polling=setInterval(()=>cloudSync('مزامنة دورية'),15000);}
  client.auth.getSession().then(async({data})=>{if(data.session){showApp();activity('متصل · بدء المزامنة');await cloudSync('استعادة الجلسة');startRealtime()}else gate()});
