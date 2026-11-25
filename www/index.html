@@ -2099,7 +2099,21 @@ function populateChecklistFilters(p){
   ...(b.facades||[]).map((name,i)=>({id:b.facadeIds[i],name,blocId:b.blocId,type:'facade'}))
  ]);
  $('fltLoc').innerHTML=`<option value="">${t('allLocs')}</option>`+locOptions.map(x=>`<option value="${safe(x.id)}">${safe(x.name)} · ${safe(blocDisplayLabel(p,details.find(b=>b.blocId===x.blocId)||{}))}</option>`).join('');
- const tradeOptions=scopedDetails.flatMap(b=>[...scopedTradesFor(p,b,'building'),...scopedTradesFor(p,b,'facade')]);
+ // When a floor/façade is selected, show only trades that actually have
+ // control points assigned to that location (not every trade in the bloc).
+ const selectedLocation=locOptions.find(x=>x.id===curL);
+ let tradeOptions=scopedDetails.flatMap(b=>[...scopedTradesFor(p,b,'building'),...scopedTradesFor(p,b,'facade')]);
+ if(selectedLocation){
+  const relevantType=selectedLocation.type==='floor'?'building':'facade';
+  const relevantTrades=new Set((p.checklist||[]).filter(cp=>{
+   const d=cp.blocId?details.find(x=>x.blocId===cp.blocId):detailForControlPoint(p,cp);
+   const sameBloc=d?.blocId===selectedLocation.blocId;
+   const cpType=(cp.metierType||'building');
+   const sameLoc=cp.locationId?cp.locationId===selectedLocation.id:String(cp.location||'')===String(selectedLocation.name||'');
+   return sameBloc&&cpType===relevantType&&sameLoc;
+  }).map(cp=>cp.metierId||('name:'+String(cp.metier||''))));
+  tradeOptions=tradeOptions.filter(x=>x.detail.blocId===selectedLocation.blocId&&x.type===relevantType&&relevantTrades.has(x.id||('name:'+String(x.name||''))));
+ }
  $('fltMetier').innerHTML=`<option value="">${t('allTrades')}</option>`+tradeOptions.map(x=>`<option value="${safe(x.id)}">${safe(x.name)} · ${safe(x.type==='facade'?t('tradeFacade'):t('tradeBuilding'))} · ${safe(x.detail.name||'Monobloc')}</option>`).join('');
  $('fltBloc').value=details.some(b=>b.blocId===curB)?curB:'';
  $('fltLoc').value=locOptions.some(x=>x.id===curL)?curL:'';
@@ -2833,7 +2847,7 @@ function renderCoordPage(){
 ${coordEsc(m.members||'—')}
 
 <b>Points et décisions abordés</b>
-${coordEsc(m.points||'—')}</div></article>`,170)}else $('coordMeetings').innerHTML='<div class="empty-state">Aucun PV de réunion enregistré pour cette page.</div>';
+${coordEsc(m.points||'—')}${(m.photos||[]).length?`<div><b>Photos jointes :</b> ${(m.photos||[]).length}</div>`:''}${(m.pdfs||[]).length?`<div><b>PDF joints :</b> ${(m.pdfs||[]).map((f,i)=>`<a href="${coordEsc(f.data)}" download="${coordEsc(f.name)}">${coordEsc(f.name)}</a>`).join(' · ')}</div>`:''}</div></article>`,170)}else $('coordMeetings').innerHTML='<div class="empty-state">Aucun PV de réunion enregistré pour cette page.</div>';
 }
 async function printCoordItem(item){
  const p=activeProject();if(!p||!item)return;
@@ -2861,18 +2875,27 @@ function openCoordItemEditor(id=null){
 }
 function openCoordMeetingEditor(id=null){
  const p=activeProject(),key=activeTab;if(!p)return;const d=coordData(p,key),old=id?d.meetings.find(x=>x.id===id):null;
- const m=old?JSON.parse(JSON.stringify(old)):{id:uid('meet_'),date:pvLocalDate(),time:pvLocalTime(),number:'',members:'',points:''};
- openModal(old?'Modifier PV de réunion':'Ajouter un PV de réunion',`<div class="form-grid"><div class="field"><label>Date du PV</label><input id="meetDate" type="date" value="${coordEsc(m.date)}"></div><div class="field"><label>Heure</label><input id="meetTime" type="time" value="${coordEsc(m.time)}"></div><div class="field"><label>Numéro du PV</label><input id="meetNumber" value="${coordEsc(m.number)}"></div><div class="field full"><label>Les membres présents</label><textarea id="meetMembers" rows="3">${coordEsc(m.members)}</textarea></div><div class="field full"><label>Points et décisions abordés</label><textarea id="meetPoints" rows="7">${coordEsc(m.points)}</textarea></div></div><div class="form-actions"><button class="primary" id="meetSave">Enregistrer</button><button class="secondary" id="meetCancel">Annuler</button></div>`);
+ const m=old?JSON.parse(JSON.stringify(old)):{id:uid('meet_'),date:pvLocalDate(),time:pvLocalTime(),number:'',members:'',points:'',photos:[],pdfs:[]};
+ m.photos=Array.isArray(m.photos)?m.photos:[];m.pdfs=Array.isArray(m.pdfs)?m.pdfs:[];
+ openModal(old?'Modifier PV de réunion':'Ajouter un PV de réunion',`<div class="form-grid"><div class="field"><label>Date du PV</label><input id="meetDate" type="date" value="${coordEsc(m.date)}"></div><div class="field"><label>Heure</label><input id="meetTime" type="time" value="${coordEsc(m.time)}"></div><div class="field"><label>Numéro du PV</label><input id="meetNumber" value="${coordEsc(m.number)}"></div><div class="field full"><label>Les membres présents</label><textarea id="meetMembers" rows="3">${coordEsc(m.members)}</textarea></div><div class="field full"><label>Points et décisions abordés</label><textarea id="meetPoints" rows="7">${coordEsc(m.points)}</textarea></div><div class="field full"><label>Photos (ajouter ou supprimer)</label><input id="meetPhotoInput" type="file" accept="image/*" multiple><div id="meetPhotoPreview" class="coord-photo-row"></div></div><div class="field full"><label>Fichiers PDF (ajouter, télécharger ou supprimer)</label><input id="meetPdfInput" type="file" accept="application/pdf,.pdf" multiple><div id="meetPdfPreview"></div></div></div><div class="form-actions"><button class="primary" id="meetSave">Enregistrer</button><button class="secondary" id="meetCancel">Annuler</button></div>`);
+ const photoPreview=()=>{$('meetPhotoPreview').innerHTML=m.photos.map((src,i)=>`<div class="coord-photo-item"><button type="button" class="coord-photo-open" data-meet-photo-view="${i}">📷</button><button type="button" class="danger small" data-meet-photo-remove="${i}">Supprimer</button></div>`).join('')};
+ const pdfPreview=()=>{$('meetPdfPreview').innerHTML=m.pdfs.map((f,i)=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0"><a href="${coordEsc(f.data)}" download="${coordEsc(f.name)}">⬇ ${coordEsc(f.name)}</a><button type="button" class="danger small" data-meet-pdf-remove="${i}">Supprimer</button></div>`).join('')};
+ photoPreview();pdfPreview();
+ $('meetPhotoInput').onchange=async e=>{for(const f of [...e.target.files])try{m.photos.push(await compressImage(f,1000,.78))}catch(err){console.error(err)}photoPreview();e.target.value=''};
+ $('meetPdfInput').onchange=async e=>{for(const f of [...e.target.files]){if(f.type!=='application/pdf'&&!f.name.toLowerCase().endsWith('.pdf'))continue;try{m.pdfs.push({name:f.name,data:await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(f)})})}catch(err){console.error(err)}}pdfPreview();e.target.value=''};
+ $('meetPhotoPreview').onclick=e=>{const del=e.target.closest('[data-meet-photo-remove]');if(del){m.photos.splice(Number(del.dataset.meetPhotoRemove),1);photoPreview();return}const view=e.target.closest('[data-meet-photo-view]');if(view)openMediaLightbox(m.photos[Number(view.dataset.meetPhotoView)],{downloadName:'photo.jpg'})};
+ $('meetPdfPreview').onclick=e=>{const del=e.target.closest('[data-meet-pdf-remove]');if(del){m.pdfs.splice(Number(del.dataset.meetPdfRemove),1);pdfPreview()}};
  $('meetCancel').onclick=closeModal;
  $('meetSave').onclick=async()=>{m.date=$('meetDate').value;m.time=$('meetTime').value;m.number=$('meetNumber').value.trim();m.members=$('meetMembers').value.trim();m.points=$('meetPoints').value.trim();if(!m.date||!m.time||!m.number){toast('Veuillez saisir la date, l’heure et le numéro du PV.');return}const i=d.meetings.findIndex(x=>x.id===m.id);if(i>=0)d.meetings[i]=m;else d.meetings.push(m);try{p.updatedAt=new Date().toISOString();await put(p);await loadProjects();closeModal();renderCoordPage();toast('PV de réunion enregistré.')}catch(err){console.error(err);toast(t('dbSaveErr'))}};
 }
 async function printCoordMeeting(m){
  const p=activeProject();if(!p)return;const esc=coordEsc;
- const frame=document.createElement('iframe');frame.style.cssText='position:fixed;width:0;height:0;border:0;visibility:hidden';document.body.appendChild(frame);
- const w=frame.contentWindow,doc=w.document;w.addEventListener('afterprint',()=>frame.remove(),{once:true});
- const printHtml = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>PV ${esc(m.number)}</title><style>@page{size:A4;margin:18mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#1b2a3a;font-size:11pt;line-height:1.65}header{border-bottom:3px solid #1d5fa8;padding-bottom:14px;margin-bottom:24px}h1{font-size:19pt;color:#0f1d2d;margin:0 0 8px}.meta{color:#64748b}.section{margin:22px 0;break-inside:avoid}h2{font-size:12pt;color:#1d5fa8;border-bottom:1px solid #dbe4ef;padding-bottom:6px}pre{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}.footer{border-top:1px solid #dbe4ef;margin-top:35px;padding-top:8px;color:#64748b;font-size:9pt}</style></head><body><header><h1>PROCÈS-VERBAL DE RÉUNION</h1><div class="meta">Projet : ${esc(p.name||'—')} · PV N° ${esc(m.number)}</div><div class="meta">Date : ${esc(m.date)} · Heure : ${esc(m.time)}</div></header><section class="section"><h2>Les membres présents</h2><pre>${esc(m.members||'—')}</pre></section><section class="section"><h2>Points et décisions abordés</h2><pre>${esc(m.points||'—')}</pre></section><div class="footer">BÂTI PILOT · ${esc(p.name||'')}</div></body></html>`;
- if(await printHtmlViaAndroid(printHtml,'PV '+(m.number||''))){frame.remove();return;}
- doc.open();doc.write(printHtml);doc.close();setTimeout(()=>{w.focus();w.print()},350);
+ const photoData=await Promise.all((m.photos||[]).map(src=>resolveMediaSource(src)));
+ const photos=photoData.map((src,i)=>`<figure><img src="${src}" alt="Photo ${i+1}"><figcaption>Photo ${i+1}</figcaption></figure>`).join('');
+ const pdfs=(m.pdfs||[]).map(f=>`<div><a href="${esc(f.data)}" download="${esc(f.name)}">${esc(f.name)}</a></div>`).join('');
+ const printHtml = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>PV ${esc(m.number)}</title><style>@page{size:A4;margin:18mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#1b2a3a;font-size:11pt;line-height:1.65}header{border-bottom:3px solid #1d5fa8;padding-bottom:14px;margin-bottom:24px}h1{font-size:19pt;color:#0f1d2d;margin:0 0 8px}.meta{color:#64748b}.section{margin:22px 0;break-inside:avoid}h2{font-size:12pt;color:#1d5fa8;border-bottom:1px solid #dbe4ef;padding-bottom:6px}pre{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}.photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.photos figure{margin:0;break-inside:avoid}.photos img{width:100%;max-height:250px;object-fit:contain;border:1px solid #dbe4ef}.photos figcaption{font-size:8pt;color:#64748b}.footer{border-top:1px solid #dbe4ef;margin-top:35px;padding-top:8px;color:#64748b;font-size:9pt}</style></head><body><header><h1>PROCÈS-VERBAL DE RÉUNION</h1><div class="meta">Projet : ${esc(p.name||'—')} · PV N° ${esc(m.number)}</div><div class="meta">Date : ${esc(m.date)} · Heure : ${esc(m.time)}</div></header><section class="section"><h2>Les membres présents</h2><pre>${esc(m.members||'—')}</pre></section><section class="section"><h2>Points et décisions abordés</h2><pre>${esc(m.points||'—')}</pre></section>${photos?`<section class="section"><h2>Photos jointes</h2><div class="photos">${photos}</div></section>`:''}${pdfs?`<section class="section"><h2>Fichiers PDF joints</h2>${pdfs}</section>`:''}<div class="footer">BÂTI PILOT · ${esc(p.name||'')}</div></body></html>`;
+ if(await printHtmlViaAndroid(printHtml,'PV '+(m.number||''))){return;}
+ const frame=document.createElement('iframe');frame.style.cssText='position:fixed;width:0;height:0;border:0;visibility:hidden';document.body.appendChild(frame);const w=frame.contentWindow,doc=w.document;w.addEventListener('afterprint',()=>frame.remove(),{once:true});doc.open();doc.write(printHtml);doc.close();setTimeout(()=>{w.focus();w.print()},350);
 }
 $('coordAddItem').onclick=()=>openCoordItemEditor();$('coordAddMeeting').onclick=()=>openCoordMeetingEditor();
 $('coordItems').addEventListener('click',async e=>{
