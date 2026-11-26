@@ -472,6 +472,8 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
 .coord-photos .coord-photo-placeholder,.coord-photo-item .coord-photo-open{width:42px;height:42px;min-width:42px;min-height:42px}
 .image-preview .image-open-trigger{width:auto;min-width:112px;min-height:40px;padding:8px 14px;font-size:13px}
 .project-thumb .project-image-trigger{width:100%;height:100%;border:0;border-radius:0;background:transparent;color:inherit}
+
+.progress-history{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}.progress-history-title{font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px}.progress-history-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;margin-top:5px;border:1px solid var(--line);border-radius:9px;background:var(--white)}.progress-history-item>span:first-child{display:flex;align-items:center;gap:12px}.progress-history-item small{color:var(--muted);font-size:12px}.progress-history-actions{display:flex;gap:5px}.progress-history-empty{font-size:12px;color:var(--muted);padding:7px 2px}.progress-history-actions button{padding:4px 8px}
 </style>
 </head>
 <body>
@@ -1187,9 +1189,9 @@ const I18N={
 };
 
 const CHART_I18N={
- ar:{title:'منحنيات تقدم الأشغال',subtitle:'لوحة قيادة بيانية لتحليل تقدم الأشغال',global:'التقدم الإجمالي',trades:'عدد الحرف',advanced:'حرف متقدمة (80% فأكثر)',late:'حرف متأخرة (أقل من 30%)',bar:'أعمدة',line:'خطي',donut:'دائري',area:'مساحة',analysis:'تحليلات إضافية',byTrade:'مقارنة حسب الحرفة',byBlock:'التقدم حسب الكتلة',byLoc:'التقدم حسب الطابق / الواجهة',remaining:'المنجز / المتبقي',tableTitle:'الجدول التفصيلي',sortAsc:'ترتيب ↑',sortDesc:'ترتيب ↓',allBlocks:'كل الكتل',allLocs:'كل الطوابق / الواجهات',allTrades:'كل الحرف',allTypes:'كل أنواع الأشغال',building:'حرف البناء',facade:'حرف الواجهات',all:'الكل',chooseTrade:'اختر الحرفة',empty:'لا توجد بيانات تقدم فعلية مطابقة للفلاتر.',noHistory:'لا توجد زيارات مؤرخة كافية لعرض التطور الزمني.',noTrade:'لا توجد حرفة محددة ذات بيانات تقدم.',type:'النوع',bloc:'الكتلة',loc:'الطابق / الواجهة',progress:'التقدم',date:'التاريخ',done:'منجز',left:'متبقٍ'},
- fr:{title:'Courbes d’Avancement',subtitle:'Tableau de bord graphique des travaux',global:'Avancement Global',trades:'Nombre de Métiers',advanced:'Métiers Avancés (≥80%)',late:'Métiers en Retard (<30%)',bar:'Barres',line:'Linéaire',donut:'Donut',area:'Aires',analysis:'Analyses complémentaires',byTrade:'Comparaison par Métier',byBlock:'Avancement par Bloc',byLoc:'Avancement par Étage / Façade',remaining:'Réalisé / Restant',tableTitle:'Tableau Récapitulatif',sortAsc:'Trier ↑',sortDesc:'Trier ↓',allBlocks:'Tous les Blocs',allLocs:'Tous les Étages / Façades',allTrades:'Tous les Métiers',allTypes:'Tous les types de travaux',building:'Métiers Bâtiment',facade:'Métiers Façades',all:'Tous',chooseTrade:'Choisir un métier',empty:'Aucune donnée réelle d’avancement pour ces filtres.',noHistory:'Pas assez de visites datées pour afficher une évolution.',noTrade:'Aucun métier sélectionné avec des données.',type:'Type',bloc:'Bloc',loc:'Étage / Façade',progress:'Avancement',date:'Date',done:'Réalisé',left:'Restant'},
- en:{title:'Progress Curves',subtitle:'Graphical work progress analysis dashboard',global:'Global Progress',trades:'Number of Trades',advanced:'Advanced Trades (≥80%)',late:'Delayed Trades (<30%)',bar:'Bars',line:'Line',donut:'Donut',area:'Area',analysis:'Additional Analysis',byTrade:'Comparison by Trade',byBlock:'Progress by Block',byLoc:'Progress by Floor / Facade',remaining:'Completed / Remaining',tableTitle:'Summary Table',sortAsc:'Sort ↑',sortDesc:'Sort ↓',allBlocks:'All Blocks',allLocs:'All Floors / Facades',allTrades:'All Trades',allTypes:'All Work Types',building:'Building Trades',facade:'Facade Trades',all:'All',chooseTrade:'Choose a trade',empty:'No actual progress data matches these filters.',noHistory:'Not enough dated visits to display a timeline.',noTrade:'No selected trade has progress data.',type:'Type',bloc:'Block',loc:'Floor / Facade',progress:'Progress',date:'Date',done:'Completed',left:'Remaining'}
+ ar:{title:'منحنيات تقدم الأشغال',subtitle:'لوحة قيادة بيانية لتحليل تقدم الأشغال',global:'التقدم الإجمالي',trades:'عدد الحرف',advanced:'حرف متقدمة (80% فأكثر)',late:'حرف متأخرة (أقل من 30%)',bar:'أعمدة',line:'خطي',donut:'دائري',area:'مساحة',analysis:'تحليلات إضافية',byTrade:'مقارنة حسب الحرفة',byBlock:'التقدم حسب الكتلة',byLoc:'التقدم حسب الطابق / الواجهة',remaining:'المنجز / المتبقي',tableTitle:'الجدول التفصيلي',sortAsc:'ترتيب ↑',sortDesc:'ترتيب ↓',allBlocks:'كل الكتل',allLocs:'كل الطوابق / الواجهات',allTrades:'كل الحرف',allTypes:'كل أنواع الأشغال',building:'حرف البناء',facade:'حرف الواجهات',all:'الكل',chooseTrade:'اختر الحرفة أو مجموعة الحرف',allBuildingTrades:'كل حرف البناء',allFacadeTrades:'كل حرف الواجهات',allProjectTrades:'كل حرف المشروع',empty:'لا توجد بيانات تقدم فعلية مطابقة للفلاتر.',noHistory:'لا توجد زيارات مؤرخة كافية لعرض التطور الزمني.',noTrade:'لا توجد حرفة محددة ذات بيانات تقدم.',type:'النوع',bloc:'الكتلة',loc:'الطابق / الواجهة',progress:'التقدم',date:'التاريخ',done:'منجز',left:'متبقٍ'},
+ fr:{title:'Courbes d’Avancement',subtitle:'Tableau de bord graphique des travaux',global:'Avancement Global',trades:'Nombre de Métiers',advanced:'Métiers Avancés (≥80%)',late:'Métiers en Retard (<30%)',bar:'Barres',line:'Linéaire',donut:'Donut',area:'Aires',analysis:'Analyses complémentaires',byTrade:'Comparaison par Métier',byBlock:'Avancement par Bloc',byLoc:'Avancement par Étage / Façade',remaining:'Réalisé / Restant',tableTitle:'Tableau Récapitulatif',sortAsc:'Trier ↑',sortDesc:'Trier ↓',allBlocks:'Tous les Blocs',allLocs:'Tous les Étages / Façades',allTrades:'Tous les Métiers',allTypes:'Tous les types de travaux',building:'Métiers Bâtiment',facade:'Métiers Façades',all:'Tous',chooseTrade:'Choisir un métier ou un groupe',allBuildingTrades:'Tous les métiers bâtiment',allFacadeTrades:'Tous les métiers façades',allProjectTrades:'Tous les métiers du projet',empty:'Aucune donnée réelle d’avancement pour ces filtres.',noHistory:'Pas assez de visites datées pour afficher une évolution.',noTrade:'Aucun métier sélectionné avec des données.',type:'Type',bloc:'Bloc',loc:'Étage / Façade',progress:'Avancement',date:'Date',done:'Réalisé',left:'Restant'},
+ en:{title:'Progress Curves',subtitle:'Graphical work progress analysis dashboard',global:'Global Progress',trades:'Number of Trades',advanced:'Advanced Trades (≥80%)',late:'Delayed Trades (<30%)',bar:'Bars',line:'Line',donut:'Donut',area:'Area',analysis:'Additional Analysis',byTrade:'Comparison by Trade',byBlock:'Progress by Block',byLoc:'Progress by Floor / Facade',remaining:'Completed / Remaining',tableTitle:'Summary Table',sortAsc:'Sort ↑',sortDesc:'Sort ↓',allBlocks:'All Blocks',allLocs:'All Floors / Facades',allTrades:'All Trades',allTypes:'All Work Types',building:'Building Trades',facade:'Facade Trades',all:'All',chooseTrade:'Choose a trade or group',allBuildingTrades:'All building trades',allFacadeTrades:'All facade trades',allProjectTrades:'All project trades',empty:'No actual progress data matches these filters.',noHistory:'Not enough dated visits to display a timeline.',noTrade:'No selected trade has progress data.',type:'Type',bloc:'Block',loc:'Floor / Facade',progress:'Progress',date:'Date',done:'Completed',left:'Remaining'}
 };
 const ct=k=>(CHART_I18N[currentLang]||CHART_I18N.ar)[k]||CHART_I18N.ar[k]||k;
 function applyChartLanguage(){document.querySelectorAll('[data-chart-i18n]').forEach(el=>el.textContent=ct(el.dataset.chartI18n));if($('chartsView')&&!$('chartsView').classList.contains('hidden'))renderChartsPage();}
@@ -1760,6 +1762,16 @@ function tradeProgressValue(detail,key){
  const value=Number(detail.tradeProgress[key]);
  return Number.isFinite(value)?Math.max(0,Math.min(100,Math.round(value))):0;
 }
+function tradeProgressHistory(detail,key){
+ ensureTradeProgressData(detail);
+ if(!detail.tradeProgressHistory||typeof detail.tradeProgressHistory!=='object'||Array.isArray(detail.tradeProgressHistory))detail.tradeProgressHistory={};
+ if(!Array.isArray(detail.tradeProgressHistory[key]))detail.tradeProgressHistory[key]=[];
+ return detail.tradeProgressHistory[key];
+}
+function renderTradeProgressHistory(detail,key){
+ const history=tradeProgressHistory(detail,key);
+ return history.length?`<div class="progress-history"><div class="progress-history-title">${currentLang==='fr'?'Historique des avancements':'سجل نسب التقدم'}</div>${history.map((item,index)=>`<div class="progress-history-item"><span><b>${item.pct}%</b><small>📅 ${safe(item.date||'—')}</small></span><span class="progress-history-actions"><button type="button" class="secondary small" data-progress-history-act="edit" data-index="${index}">${t('editBtn')}</button><button type="button" class="danger small" data-progress-history-act="delete" data-index="${index}">${t('delBtn')}</button></span></div>`).join('')}</div>`:`<div class="progress-history-empty">${currentLang==='fr'?'Aucune date enregistrée pour le moment':'لا توجد تواريخ مسجلة حاليا'}</div>`;
+}
 function tradeProgressIsExpanded(detail,key){
  ensureTradeProgressData(detail);
  return detail.tradeProgressExpanded[key]!==false;
@@ -1962,7 +1974,7 @@ function renderDashboard(){
  renderGroup('floorProgress',floorGroups,'étages',g=>average(g.items));
  renderGroup('facadeProgress',facadeGroups,'façades',g=>average(g.items));
 }
-/* ================= COURBES D'AVANCEMENT (lecture seule) ================= */
+/* ================= COURBES D'AVANCEMENT ================= */
 let chartMode='bar',chartSortAsc=true;
 function chartGroupKey(cp){
  // One chart group per Métier and its exact floor/façade scope.
@@ -1978,15 +1990,15 @@ function chartCpFromScope(scope){
  };
 }
 function chartData(p,dateRange=null,scopes=null){
- // Progress is a current manual value for each Métier/location pair; visit dates no longer affect it.
+ // Les courbes sont construites à partir des dates réellement enregistrées lors de chaque changement du métier.
  return (scopes||getProjectTradeScopes(p)).map(scope=>{
-  const cp=chartCpFromScope(scope),key=chartGroupKey(cp);
+  const cp=chartCpFromScope(scope),key=chartGroupKey(cp),history=tradeProgressHistory(scope.detail,scope.key).filter(x=>x&&x.date&&Number.isFinite(Number(x.pct))).map(x=>({date:String(x.date),pct:Math.max(0,Math.min(100,Number(x.pct))),visitId:''}));
   return {
    key,name:scope.name,type:scope.type,bloc:scope.bloc,blocId:scope.blocId,
    tradeId:scope.tradeId,location:scope.location==='—'?'':scope.location,
    locationId:scope.locationId,points:[{cp,pct:scope.pct}],
    blocks:new Set(scope.bloc?[scope.bloc]:[]),locs:new Set(scope.location&&scope.location!=='—'?[scope.location]:[]),
-   history:[{date:ct('progress'),pct:scope.pct,visitId:''}],pct:scope.pct
+   history,pct:scope.pct,progressKey:scope.key
   };
  });
 }
@@ -1996,8 +2008,7 @@ function chartFiltered(scopes=null){
  const b=$('chBloc').value,l=$('chLoc').value,m=$('chMetier').value,ty=$('chType').value;
  return chartData(p,null,scopes).map(g=>({...g,points:g.points.filter(x=>(!b||(x.cp.blocId||x.cp.bloc||'')===b)&&(!l||chartLocationKey(x.cp)===l))}))
   .filter(g=>(!ty||g.type===ty)&&(!m||(g.tradeId?g.tradeId===m:g.type+'::'+g.name===m)))
-  .map(g=>({...g,pct:g.points.length?Math.round(g.points.reduce((a,x)=>a+x.pct,0)/g.points.length):null,
-   history:g.points.map(x=>({date:ct('progress'),pct:x.pct,visitId:''}))}))
+  .map(g=>({...g,pct:g.points.length?Math.round(g.points.reduce((a,x)=>a+x.pct,0)/g.points.length):null}))
   .filter(g=>g.pct!==null);
 }
 
@@ -2016,8 +2027,11 @@ function fillChartFilters(p){
 }
 
 function chartTradeFocus(groups){
- const el=$('chFocus'),old=el.value;el.innerHTML=`<option value="">${ct('chooseTrade')}</option>`+groups.map(g=>`<option value="${chartEsc(g.key)}">${chartEsc(chartGroupLabel(g))}</option>`).join('');
- if([...el.options].some(o=>o.value===old))el.value=old;if(!el.value&&groups.length)el.value=groups[0].key;return groups.find(g=>g.key===el.value);
+ const el=$('chFocus'),old=el.value;
+ const special=[['__building__',ct('allBuildingTrades')],['__facade__',ct('allFacadeTrades')],['__all__',ct('allProjectTrades')]];
+ el.innerHTML=`<option value="">${ct('chooseTrade')}</option>`+special.map(([v,label])=>`<option value="${v}">${chartEsc(label)}</option>`).join('')+groups.map(g=>`<option value="${chartEsc(g.key)}">${chartEsc(chartGroupLabel(g))}</option>`).join('');
+ if([...el.options].some(o=>o.value===old))el.value=old;if(!el.value)el.value=chartMode==='donut'?'__all__':(groups.length?'__all__':'');
+ return {value:el.value,group:groups.find(g=>g.key===el.value)};
 }
 function chartEmpty(msg=ct('empty')){$('chartGraphic').innerHTML=`<div class="chart-empty">${chartEsc(msg)}</div>`;$('chartTooltip').textContent='';}
 function svgText(x,y,text,anchor='middle'){return `<text x="${x}" y="${y}" text-anchor="${anchor}">${chartEsc(text)}</text>`}
@@ -2027,15 +2041,35 @@ function drawBar(groups){
  groups.forEach((g,i)=>{let x=L+i*step+(step-bw)/2,h=ih*g.pct/100,y=T+ih-h;a.push(`<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="5" fill="#1d5fa8" data-tip="${chartEsc(chartGroupLabel(g))}: ${g.pct}%"/>`);a.push(svgText(x+bw/2,y-7,g.pct+'%'));a.push(`<text x="${x+bw/2}" y="${H-B+17}" text-anchor="end" transform="rotate(-28 ${x+bw/2} ${H-B+17})">${chartEsc(chartGroupLabel(g))}</text>`)});
  $('chartGraphic').innerHTML=`<svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img">${a.join('')}</svg>`;chartBindTips();
 }
-function drawTimeline(g,area=false){
- if(!g){chartEmpty(ct('noTrade'));return}const pts=[...g.history].sort((a,b)=>a.date.localeCompare(b.date));if(!pts.length){chartEmpty(ct('empty'));return}
- const W=Math.max(560,pts.length*85+80),H=300,L=52,R=24,T=22,B=48,iw=W-L-R,ih=H-T-B,x=i=>L+(pts.length===1?iw/2:i*iw/(pts.length-1)),y=v=>T+ih-(v/100)*ih;
- let a=[];for(let n=0;n<=100;n+=20){a.push(`<line class="gridline" x1="${L}" y1="${y(n)}" x2="${W-R}" y2="${y(n)}"/>`+svgText(L-9,y(n)+4,n+'%','end'))}
- const d=pts.map((p,i)=>(i?'L':'M')+x(i)+','+y(p.pct)).join(' ');if(area&&pts.length>1)a.push(`<path d="${d} L${x(pts.length-1)},${y(0)} L${x(0)},${y(0)} Z" fill="#bfdbfe" opacity=".7"/>`);a.push(`<path d="${d}" fill="none" stroke="#1d5fa8" stroke-width="3" stroke-linejoin="round"/>`);
- pts.forEach((p,i)=>{a.push(`<circle cx="${x(i)}" cy="${y(p.pct)}" r="6" fill="#1d5fa8" data-tip="${chartEsc(p.date)} · ${p.pct}%"/>`);a.push(svgText(x(i),H-15,p.date))});
+const chartPalette=['#1d5fa8','#e07a24','#15966b','#9b59b6','#d14b62','#148a9c','#8a6d3b','#64748b','#c23b8c','#5b8c3a','#4756a8','#c09a22'];
+function drawTimeline(groups,area=false){
+ if(!Array.isArray(groups))groups=groups?[groups]:[];
+ const series=groups.map((g,i)=>({...g,color:chartPalette[i%chartPalette.length],pts:[...(g.history||[])].sort((a,b)=>a.date.localeCompare(b.date))})).filter(g=>g.pts.length);
+ if(!series.length){chartEmpty(currentLang==='fr'?'Aucun historique daté pour les métiers sélectionnés. Modifiez leur avancement dans Check-list.':'لا توجد سجلات مؤرخة للحرف المحددة. غيّر نسب التقدم من صفحة Check-list.');return}
+ const dates=[...new Set(series.flatMap(g=>g.pts.map(p=>p.date)))].sort();
+ const W=Math.max(680,dates.length*90+120),H=Math.max(330,Math.ceil(series.length/2)*28+300),L=58,R=24,T=22,B=72,iw=W-L-R,ih=220,x=i=>L+(dates.length===1?iw/2:i*iw/(dates.length-1)),y=v=>T+ih-(v/100)*ih;
+ let a=[];for(let n=0;n<=100;n+=20)a.push(`<line class="gridline" x1="${L}" y1="${y(n)}" x2="${W-R}" y2="${y(n)}"/>`+svgText(L-9,y(n)+4,n+'%','end'));
+ series.forEach(g=>{
+  const lookup=new Map(g.pts.map(p=>[p.date,p]));let d='';dates.forEach((date,i)=>{const p=lookup.get(date);if(p)d+=(d?' L':'M')+x(i)+','+y(p.pct)});
+  if(area&&g.pts.length>1){const idx=dates.map((date,i)=>lookup.has(date)?i:-1).filter(i=>i>=0);if(idx.length>1){const first=idx[0],last=idx[idx.length-1],coords=idx.map(i=>'L'+x(i)+','+y(lookup.get(dates[i]).pct)).join(' ');a.push(`<path d="M${x(first)},${y(0)} ${coords} L${x(last)},${y(0)} Z" fill="${g.color}" opacity=".10"/>`)}}
+  a.push(`<path d="${d}" fill="none" stroke="${g.color}" stroke-width="3" stroke-linejoin="round"/>`);
+  g.pts.forEach(p=>{const i=dates.indexOf(p.date);a.push(`<circle cx="${x(i)}" cy="${y(p.pct)}" r="5" fill="${g.color}" data-tip="${chartEsc(g.name+' · '+p.date+' · '+p.pct+'%')}"/>`)});
+ });
+ dates.forEach((date,i)=>a.push(svgText(x(i),T+ih+27,date)));
+ const cols=2,legendY=T+ih+55,rowH=25;series.forEach((g,i)=>{const col=i%cols,row=Math.floor(i/cols),lx=L+col*(iw/cols),ly=legendY+row*rowH;a.push(`<line x1="${lx}" y1="${ly}" x2="${lx+22}" y2="${ly}" stroke="${g.color}" stroke-width="4"/><text x="${lx+29}" y="${ly+4}" text-anchor="start">${chartEsc(g.name||chartGroupLabel(g))}</text>`) });
  $('chartGraphic').innerHTML=`<svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img">${a.join('')}</svg>`;chartBindTips();
 }
-function drawDonut(g){if(!g){chartEmpty(ct('noTrade'));return}const pct=g.pct,rem=100-pct,c=2*Math.PI*78,offset=c*(1-pct/100);$('chartGraphic').innerHTML=`<div style="display:flex;align-items:center;justify-content:center;gap:28px;flex-wrap:wrap;min-height:260px"><svg viewBox="0 0 220 220" width="220" height="220"><circle cx="110" cy="110" r="78" fill="none" stroke="#e8edf3" stroke-width="27"/><circle cx="110" cy="110" r="78" fill="none" stroke="#1d5fa8" stroke-width="27" stroke-dasharray="${c}" stroke-dashoffset="${offset}" transform="rotate(-90 110 110)"/><text x="110" y="105" text-anchor="middle" style="font-size:27px;font-weight:900;fill:#0f1d2d">${pct}%</text><text x="110" y="128" text-anchor="middle">${chartEsc(chartGroupLabel(g))}</text></svg><div><p>🔵 ${ct('done')}: <b>${pct}%</b></p><p>⚪ ${ct('left')}: <b>${rem}%</b></p></div></div>`;$('chartTooltip').textContent=`${g.name}: ${pct}% / ${rem}%`}
+function donutSvg(g,pct,index){const rem=100-pct,c=2*Math.PI*70,offset=c*(1-pct/100),color=chartPalette[index%chartPalette.length];return `<div style="display:flex;flex-direction:column;align-items:center;gap:8px;min-width:210px;max-width:260px;padding:12px"><svg viewBox="0 0 200 200" width="190" height="190"><circle cx="100" cy="100" r="70" fill="none" stroke="#e8edf3" stroke-width="25"/><circle cx="100" cy="100" r="70" fill="none" stroke="${color}" stroke-width="25" stroke-dasharray="${c}" stroke-dashoffset="${offset}" transform="rotate(-90 100 100)"/><text x="100" y="96" text-anchor="middle" style="font-size:27px;font-weight:900;fill:#0f1d2d">${pct}%</text><text x="100" y="119" text-anchor="middle" style="font-size:11px">${chartEsc(ct('done'))}</text></svg><b style="text-align:center">${chartEsc(g.label||chartGroupLabel(g))}</b><span>${ct('done')}: ${pct}% · ${ct('left')}: ${rem}%</span></div>`}
+function drawDonut(groups,selection='__all__'){
+ if(!groups.length){chartEmpty();return}
+ if(selection==='__all__'){
+  const total=groups.reduce((sum,g)=>sum+g.pct,0),pct=Math.round(total/groups.length);
+  $('chartGraphic').innerHTML=`<div style="display:flex;justify-content:center;align-items:center;min-height:260px">${donutSvg({label:ct('allProjectTrades')+' · '+groups.length+' '+ct('trades')},pct,0)}</div>`;
+  $('chartTooltip').textContent=`${ct('allProjectTrades')}: ${pct}% · ${100-pct}% ${ct('left')}`;return;
+ }
+ $('chartGraphic').innerHTML=`<div style="display:flex;justify-content:center;align-items:flex-start;gap:10px;flex-wrap:wrap">${groups.map((g,i)=>donutSvg(g,g.pct,i)).join('')}</div>`;
+ $('chartTooltip').textContent=groups.map(g=>`${g.name}: ${g.pct}% / ${100-g.pct}%`).join(' · ');
+}
 function chartBindTips(){$('chartGraphic').querySelectorAll('[data-tip]').forEach(el=>{const show=()=>{$('chartTooltip').textContent=el.getAttribute('data-tip')};el.addEventListener('mouseenter',show);el.addEventListener('click',show);el.addEventListener('focus',show)})}
 function analysisRows(target,items,label){$(target).innerHTML=items.length?items.map(x=>`<div class="chart-row"><span class="chart-row-name" title="${chartEsc(x.name)}">${chartEsc(x.name)}</span><div class="bar"><span style="width:${x.pct}%"></span></div><b>${x.pct}%</b></div>`).join(''):`<div class="muted">${ct('empty')}</div>`}
 
@@ -2098,11 +2132,12 @@ async function exportChartsPDF(){
  },450);
 }
 function renderChartsPage(){
- const p=activeProject();if(!p||!$('chartsView'))return;const scopes=fillChartFilters(p),groups=chartFiltered(scopes),focus=chartTradeFocus(groups);
+ const p=activeProject();if(!p||!$('chartsView'))return;const scopes=fillChartFilters(p),groups=chartFiltered(scopes),focus=chartTradeFocus(groups),selection=focus.value;
+ const displayGroups=selection==='__building__'?groups.filter(g=>g.type==='building'):selection==='__facade__'?groups.filter(g=>g.type==='facade'):selection==='__all__'?groups:focus.group?[focus.group]:groups;
  const scopedPoints=groups.flatMap(g=>g.points.map(x=>x.pct));const overall=scopedPoints.length?Math.round(scopedPoints.reduce((a,v)=>a+v,0)/scopedPoints.length):null;
  $('chGlobal').textContent=overall===null?'—':overall+'%';$('chGlobalBar').style.width=(overall||0)+'%';$('chTradeCount').textContent=groups.length;$('chAdvanced').textContent=groups.filter(g=>g.pct>=80).length;$('chLate').textContent=groups.filter(g=>g.pct<30).length;
  $('chartModes').querySelectorAll('[data-chart]').forEach(b=>b.classList.toggle('active',b.dataset.chart===chartMode));
- if(chartMode==='bar')drawBar(groups);else if(chartMode==='line')drawTimeline(focus,false);else if(chartMode==='area')drawTimeline(focus,true);else drawDonut(focus);
+ if(chartMode==='bar')drawBar(groups);else if(chartMode==='line')drawTimeline(displayGroups,false);else if(chartMode==='area')drawTimeline(displayGroups,true);else drawDonut(displayGroups,selection);
  analysisRows('chByTrade',[...groups].sort((a,b)=>b.pct-a.pct).map(g=>({...g,name:chartGroupLabel(g)})));
  const allPts=groups.flatMap(g=>g.points.map(x=>({cp:x.cp,pct:x.pct}))),blockStats=new Map(),locMap=new Map();
  allPts.forEach(x=>{
@@ -2236,6 +2271,7 @@ function renderChecklistPage(){
      <input type="range" min="0" max="100" step="1" value="${pct}" data-trade-progress-input="range" data-bloc-id="${safe(scope.blocId)}" data-progress-key="${safe(key)}" aria-label="${safe(scope.name)} ${safe(locationType)}">
      <input type="number" min="0" max="100" step="1" value="${pct}" data-trade-progress-input="number" data-bloc-id="${safe(scope.blocId)}" data-progress-key="${safe(key)}" aria-label="${t('progressRate')}">
     </div>
+    <div data-progress-history="${safe(key)}">${renderTradeProgressHistory(detail,key)}</div>
    </div>
    ${pts.length?`<div class="lazy-list" data-lazy-list="checklist-${index}"></div>`:`<div class="empty-state">${t('noCpForTrade')}</div>`}
   </div>`;
@@ -2325,22 +2361,25 @@ $('checklistContainer').addEventListener('click',async e=>{
 });
 
 $('checklistContainer').addEventListener('input',e=>{
- const input=e.target.closest('[data-trade-progress-input]');if(!input)return;
- if(input.value==='')return;
- const p=activeProject();if(!p)return;
- const detail=(p.blocDetails||[]).find(x=>x.blocId===input.dataset.blocId);if(!detail)return;
+ const input=e.target.closest('[data-trade-progress-input]');if(!input||input.value==='')return;
  const raw=Number(input.value);if(!Number.isFinite(raw))return;
- const pct=Math.max(0,Math.min(100,Math.round(raw))),key=input.dataset.progressKey;
- ensureTradeProgressData(detail);detail.tradeProgress[key]=pct;
- const panel=input.closest('.metier-progress-panel');
- if(panel){
-  const range=panel.querySelector('[data-trade-progress-input="range"]');
-  const number=panel.querySelector('[data-trade-progress-input="number"]');
-  if(range&&range!==input)range.value=String(pct);
-  if(number&&number!==input)number.value=String(pct);
-  const label=panel.querySelector('.metier-progress-value');if(label)label.textContent=pct+'%';
- }
+ const pct=Math.max(0,Math.min(100,Math.round(raw))),panel=input.closest('.metier-progress-panel');
+ if(panel){panel.querySelectorAll('[data-trade-progress-input]').forEach(el=>{if(el!==input)el.value=String(pct)});const label=panel.querySelector('.metier-progress-value');if(label)label.textContent=pct+'%'}
 });
+function openProgressDateModal(p,detail,key,pct,existingIndex=null){
+ const history=tradeProgressHistory(detail,key),existing=existingIndex===null?null:history[existingIndex];
+ const dateValue=existing?.date||new Date().toISOString().slice(0,10);
+ openModal(currentLang==='fr'?'Date de l’avancement':'تاريخ نسبة التقدم',`<div class="field"><label>${currentLang==='fr'?`Date d’atteinte de ${pct}%`:`تاريخ بلوغ نسبة ${pct}%`}</label><input type="date" id="progressHistoryDate" value="${safe(dateValue)}" required></div><div class="form-actions"><button class="primary" id="saveProgressHistory">${t('saveBtn')}</button><button class="secondary" id="cancelProgressHistory">${t('cancelBtn')}</button></div>`);
+ $('cancelProgressHistory').onclick=()=>{closeModal();renderChecklistPage()};
+ $('saveProgressHistory').onclick=async()=>{
+  const date=$('progressHistoryDate').value;if(!date){toast(currentLang==='fr'?'Veuillez choisir une date':'يرجى تحديد التاريخ');return}
+  if(existingIndex===null)history.push({id:uid('ph_'),date,pct,previousPct:tradeProgressValue(detail,key)});else history[existingIndex]={...history[existingIndex],date};
+  history.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(history.length)detail.tradeProgress[key]=history[history.length-1].pct;
+  p.updatedAt=new Date().toISOString();closeModal();
+  try{await put(p);await loadProjects();renderActiveView()}catch(err){console.error('Progress history save failed:',err);toast(t('dbSaveErr'))}
+ };
+}
 $('checklistContainer').addEventListener('change',async e=>{
  const input=e.target.closest('[data-trade-progress-input]');if(!input)return;
  const p=activeProject();if(!p)return;
@@ -2350,14 +2389,22 @@ $('checklistContainer').addEventListener('change',async e=>{
  if(input.value===''){input.value=String(stored);return}
  const raw=Number(input.value);if(!Number.isFinite(raw)){input.value=String(stored);return}
  const pct=Math.max(0,Math.min(100,Math.round(raw)));
- detail.tradeProgress[key]=pct;
- const panel=input.closest('.metier-progress-panel');
- if(panel){
-  panel.querySelectorAll('[data-trade-progress-input]').forEach(el=>el.value=String(pct));
-  const label=panel.querySelector('.metier-progress-value');if(label)label.textContent=pct+'%';
+ if(pct===stored){input.closest('.metier-progress-panel')?.querySelectorAll('[data-trade-progress-input]').forEach(el=>el.value=String(stored));return}
+ openProgressDateModal(p,detail,key,pct);
+});
+$('checklistContainer').addEventListener('click',async e=>{
+ const action=e.target.closest('[data-progress-history-act]');if(!action)return;
+ const p=activeProject();if(!p)return;
+ const panel=action.closest('[data-progress-panel]')||action.closest('.metier-progress-panel');
+ const box=action.closest('.metier-box');if(!box)return;
+ const detail=(p.blocDetails||[]).find(x=>x.blocId===box.dataset.blocId);if(!detail)return;
+ const key=box.dataset.progressKey,index=Number(action.dataset.index),history=tradeProgressHistory(detail,key),item=history[index];if(!item)return;
+ if(action.dataset.progressHistoryAct==='edit')openProgressDateModal(p,detail,key,item.pct,index);
+ else if(action.dataset.progressHistoryAct==='delete'){
+  if(!confirm(currentLang==='fr'?'Supprimer cette date de progression ?':'هل تريد حذف هذا التاريخ من سجل التقدم؟'))return;
+  history.splice(index,1);if(history.length)detail.tradeProgress[key]=history[history.length-1].pct;else if(Number.isFinite(Number(item.previousPct)))detail.tradeProgress[key]=Number(item.previousPct);p.updatedAt=new Date().toISOString();
+  try{await put(p);await loadProjects();renderActiveView()}catch(err){console.error('Progress history delete failed:',err);toast(t('dbSaveErr'))}
  }
- p.updatedAt=new Date().toISOString();
- try{await put(p)}catch(err){console.error('Métier progress save failed:',err);toast(t('dbSaveErr'))}
 });
 
 function openVisitModal(p,cp,visitId=null){
