@@ -1780,7 +1780,13 @@ function getProjectTradeScopes(p,entitiesReady=false){
   [...scopedTradesFor(p,detail,'building'),...scopedTradesFor(p,detail,'facade')].forEach(m=>{
    const isFacade=m.type==='facade',names=isFacade?(detail.facades||[]):(detail.floors||[]),ids=isFacade?(detail.facadeIds||[]):(detail.floorIds||[]);
    const tradeKey=m.id?'id:'+m.id:'name:'+String(m.name||''),matches=matchesByTrade.get(JSON.stringify([detail.blocId,m.type,tradeKey]))||[];
-   const locations=names.map((name,i)=>({id:ids[i]||'',name})),locationIds=new Set(locations.map(x=>x.id).filter(Boolean)),locationNames=new Set(locations.map(x=>x.name));
+   // A location-scoped métier belongs to its own floor/façade only.
+   // Do not cross every scoped métier with every location in the bloc:
+   // that created duplicate cards and mismatched progress keys.
+   const scopedLocationIndex=m.locationId?ids.indexOf(m.locationId):-1;
+   const locations=scopedLocationIndex>=0
+    ?[{id:ids[scopedLocationIndex],name:names[scopedLocationIndex]||'—'}]
+    :names.map((name,i)=>({id:ids[i]||'',name})),locationIds=new Set(locations.map(x=>x.id).filter(Boolean)),locationNames=new Set(locations.map(x=>x.name));
    let hasUnlocated=false;
    matches.forEach(cp=>{
     if(cp.locationId&&!locationIds.has(cp.locationId)){
