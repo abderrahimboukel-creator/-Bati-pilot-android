@@ -2099,26 +2099,26 @@ function populateChecklistFilters(p){
   ...(b.facades||[]).map((name,i)=>({id:b.facadeIds[i],name,blocId:b.blocId,type:'facade'}))
  ]);
  $('fltLoc').innerHTML=`<option value="">${t('allLocs')}</option>`+locOptions.map(x=>`<option value="${safe(x.id)}">${safe(x.name)} · ${safe(blocDisplayLabel(p,details.find(b=>b.blocId===x.blocId)||{}))}</option>`).join('');
- // When a floor/façade is selected, show only trades that actually have
- // control points assigned to that location (not every trade in the bloc).
+ // La liste dépend du type d'emplacement choisi, et non des points
+ // de contrôle déjà créés : les nouveaux métiers restent donc sélectionnables.
  const selectedLocation=locOptions.find(x=>x.id===curL);
- let tradeOptions=scopedDetails.flatMap(b=>[...scopedTradesFor(p,b,'building'),...scopedTradesFor(p,b,'facade')]);
+ let tradeOptions=scopedDetails.flatMap(b=>[
+  ...scopedTradesFor(p,b,'building'),
+  ...scopedTradesFor(p,b,'facade')
+ ]);
  if(selectedLocation){
   const relevantType=selectedLocation.type==='floor'?'building':'facade';
-  const relevantTrades=new Set((p.checklist||[]).filter(cp=>{
-   const d=cp.blocId?details.find(x=>x.blocId===cp.blocId):detailForControlPoint(p,cp);
-   const sameBloc=d?.blocId===selectedLocation.blocId;
-   const cpType=(cp.metierType||'building');
-   const sameLoc=cp.locationId?cp.locationId===selectedLocation.id:String(cp.location||'')===String(selectedLocation.name||'');
-   return sameBloc&&cpType===relevantType&&sameLoc;
-  }).map(cp=>cp.metierId||('name:'+String(cp.metier||''))));
-  tradeOptions=tradeOptions.filter(x=>x.detail.blocId===selectedLocation.blocId&&x.type===relevantType&&relevantTrades.has(x.id||('name:'+String(x.name||''))));
+  tradeOptions=tradeOptions.filter(x=>
+   x.detail.blocId===selectedLocation.blocId&&x.type===relevantType
+  );
  }
  $('fltMetier').innerHTML=`<option value="">${t('allTrades')}</option>`+tradeOptions.map(x=>`<option value="${safe(x.id)}">${safe(x.name)} · ${safe(x.type==='facade'?t('tradeFacade'):t('tradeBuilding'))} · ${safe(x.detail.name||'Monobloc')}</option>`).join('');
  $('fltBloc').value=details.some(b=>b.blocId===curB)?curB:'';
  $('fltLoc').value=locOptions.some(x=>x.id===curL)?curL:'';
  $('fltMetier').value=tradeOptions.some(x=>x.id===curM)?curM:'';
  $('fltBloc').onchange=()=>{populateChecklistFilters(p);renderChecklistPage()};
+ $('fltLoc').onchange=()=>{populateChecklistFilters(p);renderChecklistPage()};
+ $('fltMetier').onchange=()=>renderChecklistPage();
 }
 
 const lazyListObservers=new Set();
