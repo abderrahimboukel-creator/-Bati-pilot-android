@@ -2372,46 +2372,74 @@ $('manageMetiersBtn').onclick=()=>{
  const p=activeProject();if(!p)return;ensureProjectEntityIds(p);
  const details=p.blocDetails||[];if(!details.length){toast(t('noTradesAvail'));return}
  const renderManage=()=>{
-  const detail=details.find(b=>b.blocId===$('manageBlocSelect')?.value)||details[0];
-  const col=(arr,type,title,ids)=>`<div class="manage-col"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><strong>${title}</strong><button class="primary small" data-add-cp-type="${type}">${t('addCpShort')}</button></div>${arr.length?arr.map((m,i)=>`<div class="manage-item" data-sort-item data-sort-index="${i}"><span><button type="button" class="drag-handle" aria-label="ترتيب المهنة" title="اسحب لإعادة الترتيب">⠿</button>${safe(m)}</span><div style="display:flex;gap:4px"><button class="secondary small" data-ren-m="${type}" data-idx="${i}">✎</button><button class="danger small" data-del-m="${type}" data-idx="${i}">✕</button></div></div>`).join(''):`<div class="muted">${t('empty')}</div>`}</div>`;
   const selected=$('manageBlocSelect')?.value||details[0].blocId;
-  openModal(t('manageTradesBtn').replace('⚙ ',''),`<div class="field"><label>${t('blocLabel')}</label><select id="manageBlocSelect">${details.map(b=>`<option value="${safe(b.blocId)}" ${b.blocId===selected?'selected':''}>${safe(blocDisplayLabel(p,b))}</option>`).join('')}</select></div><div class="manage-grid">${col(detail.buildingTrades,'building',t('buildingTrades'))}${col(detail.facadeTrades,'facade',t('facadeTrades'))}</div>`);
+  const detail=details.find(b=>b.blocId===selected)||details[0];
+  const renderLocationCol=(type,loc,locId,index)=>{
+   const isFacade=type==='facade',namesKey=isFacade?'facadeTradesByLocation':'buildingTradesByLocation';
+   const idsKey=isFacade?'facadeTradeIdsByLocation':'buildingTradeIdsByLocation';
+   const namesMap=detail[namesKey]||(detail[namesKey]={}),idsMap=detail[idsKey]||(detail[idsKey]={});
+   const arr=namesMap[locId]||(namesMap[locId]=[]),ids=idsMap[locId]||(idsMap[locId]=[]);
+   return `<div class="manage-col" data-manage-location="${safe(locId)}" data-manage-type="${type}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px"><strong>${safe(loc)} — ${t(type==='building'?'buildingTrades':'facadeTrades')}</strong><button class="primary small" data-add-scoped-cp="${type}" data-loc-id="${safe(locId)}">${t('addCpShort')}</button></div>
+    ${arr.length?arr.map((m,i)=>`<div class="manage-item" data-sort-item data-sort-index="${i}"><span><button type="button" class="drag-handle" aria-label="ترتيب المهنة">⠿</button>${safe(m)}</span><div style="display:flex;gap:4px"><button class="secondary small" data-ren-scoped="${type}" data-loc-id="${safe(locId)}" data-idx="${i}">✎</button><button class="danger small" data-del-scoped="${type}" data-loc-id="${safe(locId)}" data-idx="${i}">✕</button></div></div>`).join(''):`<div class="muted">${t('empty')}</div>`}
+    <div class="pv-inline-add" style="margin-top:10px"><input id="manage_new_${type}_${index}" placeholder="${'Ajouter un métier'}"><button class="secondary small" data-add-trade-location="${type}" data-loc-id="${safe(locId)}" data-input-id="manage_new_${type}_${index}">${t('addBtn')}</button></div>
+   </div>`;
+  };
+  const floors=(detail.floors||[]),floorIds=(detail.floorIds||[]),facades=(detail.facades||[]),facadeIds=(detail.facadeIds||[]);
+  const buildingHtml=floors.map((loc,i)=>renderLocationCol('building',loc,floorIds[i],i)).join('')||`<div class="muted">${t('floorsLabel')}: ${t('empty')}</div>`;
+  const facadeHtml=facades.map((loc,i)=>renderLocationCol('facade',loc,facadeIds[i],i)).join('')||`<div class="muted">${t('facadesLabel')}: ${t('empty')}</div>`;
+  openModal(t('manageTradesBtn').replace('⚙ ',''),`<div class="field"><label>${t('blocLabel')}</label><select id="manageBlocSelect">${details.map(b=>`<option value="${safe(b.blocId)}" ${b.blocId===selected?'selected':''}>${safe(blocDisplayLabel(p,b))}</option>`).join('')}</select></div>
+   <div class="section-title" style="margin:14px 0 8px">${t('buildingTrades')}</div><div class="manage-grid">${buildingHtml}</div>
+   <div class="section-title" style="margin:18px 0 8px">${t('facadeTrades')}</div><div class="manage-grid">${facadeHtml}</div>`);
   $('manageBlocSelect').onchange=renderManage;
-  $('modalBody').querySelectorAll('.manage-col').forEach((box,idx)=>{const type=idx===0?'building':'facade';enableManualSort(box,'[data-sort-item]',async(from,to)=>{
-   const d=details.find(b=>b.blocId===$('manageBlocSelect').value);if(!d)return;
-   const key=type==='building'?'buildingTrades':'facadeTrades',idKey=type==='building'?'buildingTradeIds':'facadeTradeIds';
-   moveArrayItem(d[key],from,to);moveArrayItem(d[idKey],from,to);syncProjectArraysFromBlocs(p);await saveProjectChecklist(p);renderManage();
-  })});
+  $('modalBody').querySelectorAll('.manage-col[data-manage-location]').forEach(box=>{
+   const type=box.dataset.manageType,locId=box.dataset.manageLocation;
+   enableManualSort(box,'[data-sort-item]',async(from,to)=>{
+    const d=details.find(b=>b.blocId===$('manageBlocSelect').value);if(!d)return;
+    const nk=type==='building'?'buildingTradesByLocation':'facadeTradesByLocation',ik=type==='building'?'buildingTradeIdsByLocation':'facadeTradeIdsByLocation';
+    moveArrayItem(d[nk][locId],from,to);moveArrayItem(d[ik][locId],from,to);
+    syncProjectArraysFromBlocs(p);await saveProjectChecklist(p);renderManage();
+   });
+  });
   $('modalBody').onclick=async e=>{
-   const addCp=e.target.closest('[data-add-cp-type]'),ren=e.target.closest('[data-ren-m]'),del=e.target.closest('[data-del-m]');
-   if(addCp){closeModal();openAddControlPointModal(addCp.dataset.addCpType);return}
+   const addCp=e.target.closest('[data-add-scoped-cp]'),addTrade=e.target.closest('[data-add-trade-location]');
+   const ren=e.target.closest('[data-ren-scoped]'),del=e.target.closest('[data-del-scoped]');
+   if(addCp){closeModal();openAddControlPointModal(addCp.dataset.addScopedCp,{blocId:selected,locationId:addCp.dataset.locId});return}
    const d=details.find(b=>b.blocId===$('manageBlocSelect').value);if(!d)return;
+   if(addTrade){
+    const type=addTrade.dataset.addTradeLocation,locId=addTrade.dataset.locId,inp=$(addTrade.dataset.inputId),name=inp.value.trim();if(!name)return;
+    const nk=type==='building'?'buildingTradesByLocation':'facadeTradesByLocation',ik=type==='building'?'buildingTradeIdsByLocation':'facadeTradeIdsByLocation';
+    d[nk]=d[nk]||{};d[ik]=d[ik]||{};d[nk][locId]=d[nk][locId]||[];d[ik][locId]=d[ik][locId]||[];
+    if(d[nk][locId].some(x=>x.toLowerCase()===name.toLowerCase())){toast(t('alreadyExists'));return}
+    d[nk][locId].push(name);d[ik][locId].push(uid('trade_'));syncProjectArraysFromBlocs(p);await saveProjectChecklist(p);renderManage();return;
+   }
    if(ren){
-    const type=ren.dataset.renM,idx=Number(ren.dataset.idx),key=type==='building'?'buildingTrades':'facadeTrades',arr=d[key],oldName=arr[idx],oldId=d[type==='building'?'buildingTradeIds':'facadeTradeIds'][idx];
-    const nn=prompt(t('editTradePrompt'),oldName);
-    if(nn&&nn.trim()){
-     arr[idx]=nn.trim();
-     (p.checklist||[]).forEach(c=>{if((c.metierId&&c.metierId===oldId)||(!c.metierId&&c.metier===oldName&&c.metierType===type&&detailForControlPoint(p,c)?.blocId===d.blocId))c.metier=nn.trim()});
-     syncProjectArraysFromBlocs(p);await saveProjectChecklist(p);renderManage();
-    }
+    const type=ren.dataset.renScoped,locId=ren.dataset.locId,idx=Number(ren.dataset.idx);
+    const nk=type==='building'?'buildingTradesByLocation':'facadeTradesByLocation',ik=type==='building'?'buildingTradeIdsByLocation':'facadeTradeIdsByLocation';
+    const arr=d[nk]?.[locId]||[],ids=d[ik]?.[locId]||[],oldName=arr[idx],oldId=ids[idx];if(oldName===undefined)return;
+    const nn=prompt(t('editTradePrompt'),oldName);if(!nn||!nn.trim())return;
+    arr[idx]=nn.trim();
+    (p.checklist||[]).forEach(c=>{if((c.metierId&&c.metierId===oldId)||(!c.metierId&&c.metier===oldName&&c.metierType===type&&c.blocId===d.blocId&&c.locationId===locId))c.metier=nn.trim()});
+    syncProjectArraysFromBlocs(p);await saveProjectChecklist(p);renderManage();return;
    }
    if(del){
-    const type=del.dataset.delM,idx=Number(del.dataset.idx),key=type==='building'?'buildingTrades':'facadeTrades',idKey=type==='building'?'buildingTradeIds':'facadeTradeIds',arr=d[key],name=arr[idx],id=d[idKey][idx];
+    const type=del.dataset.delScoped,locId=del.dataset.locId,idx=Number(del.dataset.idx);
+    const nk=type==='building'?'buildingTradesByLocation':'facadeTradesByLocation',ik=type==='building'?'buildingTradeIdsByLocation':'facadeTradeIdsByLocation';
+    const arr=d[nk]?.[locId]||[],ids=d[ik]?.[locId]||[],name=arr[idx],id=ids[idx];if(name===undefined)return;
     if(!confirm(`"${name}" — ${t('confirmDelTrade')}`))return;
-    arr.splice(idx,1);d[idKey].splice(idx,1);
-    p.checklist=(p.checklist||[]).filter(c=>!((c.metierId&&c.metierId===id)||(!c.metierId&&c.metier===name&&c.metierType===type&&detailForControlPoint(p,c)?.blocId===d.blocId)));
+    arr.splice(idx,1);ids.splice(idx,1);
+    p.checklist=(p.checklist||[]).filter(c=>!((c.metierId&&c.metierId===id)||(!c.metierId&&c.metier===name&&c.metierType===type&&c.blocId===d.blocId&&c.locationId===locId)));
     syncProjectArraysFromBlocs(p);await saveProjectChecklist(p);renderManage();
    }
   };
  };
  renderManage();
 };
-
-function openAddControlPointModal(forceType=null){
+function openAddControlPointModal(forceType=null,presetScope=null){
  const p=activeProject();if(!p)return;ensureProjectEntityIds(p);
  const details=p.blocDetails||[];if(!details.length){toast(t('noTradesAvail'));return}
- const tradesFor=d=>[...scopedTradesFor(p,d,'building'),...scopedTradesFor(p,d,'facade')].filter(x=>!forceType||x.type===forceType);
- const first=details.find(d=>tradesFor(d).length)||details[0];
+ const tradesFor=d=>[...scopedTradesFor(p,d,'building'),...scopedTradesFor(p,d,'facade')].filter(x=>(!forceType||x.type===forceType)&&(!presetScope?.locationId||x.locationId===presetScope.locationId));
+ const first=(presetScope?.blocId?details.find(d=>d.blocId===presetScope.blocId):null)||details.find(d=>tradesFor(d).length)||details[0];
  if(!details.some(d=>tradesFor(d).length)){toast(t('noTradesAvail'));return}
  const blockOptions=details.map(d=>`<option value="${safe(d.blocId)}" ${d.blocId===first.blocId?'selected':''}>${safe(blocDisplayLabel(p,d))}</option>`).join('');
  openModal(t('addCpModalTitle'),`<div class="form-grid">
@@ -2422,7 +2450,7 @@ function openAddControlPointModal(forceType=null){
   <div class="field full"><label>${t('descOptLabel')}</label><textarea id="ncp_desc" rows="2"></textarea></div>
  </div><div class="form-actions"><button class="primary" id="ncp_save">${t('addBtn')}</button><button class="secondary" onclick="document.getElementById('modalClose').click()">${t('cancelBtn')}</button></div>`);
  const refresh=()=>{
-  const d=details.find(x=>x.blocId===$('ncp_bloc').value)||first,oldTrade=$('ncp_metier').value,oldLoc=$('ncp_loc').value,opts=tradesFor(d);
+  const d=details.find(x=>x.blocId===$('ncp_bloc').value)||first,oldTrade=$('ncp_metier').value,oldLoc=$('ncp_loc').value||((presetScope?.blocId===d.blocId)?presetScope.locationId:''),opts=tradesFor(d);
   $('ncp_metier').innerHTML=opts.map(x=>`<option value="${safe(x.id)}">${safe(x.name)} (${x.type==='facade'?t('tradeFacade'):t('tradeBuilding')})</option>`).join('');
   if(opts.some(x=>x.id===oldTrade))$('ncp_metier').value=oldTrade;
   refreshLocations();
