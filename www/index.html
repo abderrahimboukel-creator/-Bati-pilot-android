@@ -1516,53 +1516,67 @@ function renderBlocCards(target){
 
 function openBlocModal(isMonobloc, editIdx=null, onDone=null){
  const existing=editIdx!==null?formBlocDetails[editIdx]:{name:'',floors:[],facades:[],buildingTrades:[],facadeTrades:[],isMonobloc};
- const temp={floors:[...existing.floors],facades:[...existing.facades],buildingTrades:[...existing.buildingTrades],facadeTrades:[...existing.facadeTrades]};
+ const temp={floors:[...(existing.floors||[])],facades:[...(existing.facades||[])]};
+ const floorIds=[...(existing.floorIds||[])],facadeIds=[...(existing.facadeIds||[])];
+ while(floorIds.length<temp.floors.length)floorIds.push(uid('floor_'));
+ while(facadeIds.length<temp.facades.length)facadeIds.push(uid('facade_'));
+ const scoped={
+  building:{names:JSON.parse(JSON.stringify(existing.buildingTradesByLocation||{})),ids:JSON.parse(JSON.stringify(existing.buildingTradeIdsByLocation||{}))},
+  facade:{names:JSON.parse(JSON.stringify(existing.facadeTradesByLocation||{})),ids:JSON.parse(JSON.stringify(existing.facadeTradeIdsByLocation||{}))}
+ };
+ // Migrate old projects that had one shared list: keep it under the first location only.
+ if(temp.floors.length&&!Object.keys(scoped.building.names).length&&(existing.buildingTrades||[]).length){
+  const id=floorIds[0];scoped.building.names[id]=[...existing.buildingTrades];scoped.building.ids[id]=[...(existing.buildingTradeIds||[])];
+ }
+ if(temp.facades.length&&!Object.keys(scoped.facade.names).length&&(existing.facadeTrades||[]).length){
+  const id=facadeIds[0];scoped.facade.names[id]=[...existing.facadeTrades];scoped.facade.ids[id]=[...(existing.facadeTradeIds||[])];
+ }
  const chipBox=(id,title,ph)=>`<div class="section-title" style="margin-top:16px">${title}</div><div class="chip-input"><input id="bm_${id}_in" placeholder="${ph}"><button type="button" class="secondary small" data-bm-add="${id}">${t('addBtn')}</button></div><div class="chips" id="bm_${id}_chips"></div>`;
+ const scopePanel=(type,title,locs,ids,ph)=>`<div id="bm_scope_${type}_section"><div class="section-title" style="margin-top:18px">${title}</div>${locs.length?locs.map((loc,i)=>`<div class="card" style="padding:10px;margin:8px 0"><strong>${safe(loc)}</strong><div class="chip-input" style="margin-top:8px"><input id="bm_scope_${type}_${i}_in" placeholder="${ph}"><button type="button" class="secondary small" data-bm-add-scope="${type}" data-loc-id="${safe(ids[i])}" data-input-id="bm_scope_${type}_${i}_in">＋ ${t('addBtn')}</button></div><div class="chips" id="bm_scope_${type}_${i}_chips" data-scope-type="${type}" data-loc-id="${safe(ids[i])}"></div></div>`).join(''):`<div class="muted">${t('noItems')}</div>`}</div>`;
  openModal(isMonobloc?t('modalMonobloc'):(editIdx!==null?t('modalEditBloc'):t('modalAddBloc')),`
   ${isMonobloc?'':`<div class="field" style="margin-bottom:12px"><label>${t('blocNameLabel')}</label><input id="bm_name" value="${safe(existing.name)}" placeholder="${t('blocNamePh')}"></div>`}
   ${chipBox('floors',t('floorsLabel'),t('floorsPh'))}
   ${chipBox('facades',t('facadesLabel'),t('facadesPh'))}
-  ${chipBox('buildingTrades',t('buildingTrades'),t('bTradesPh'))}
-  ${chipBox('facadeTrades',t('facadeTrades'),t('fTradesPh'))}
+  ${scopePanel('building',t('buildingTrades'),temp.floors,floorIds,t('bTradesPh'))}
+  ${scopePanel('facade',t('facadeTrades'),temp.facades,facadeIds,t('fTradesPh'))}
   <div class="form-actions"><button type="button" class="primary" id="bm_save">${t('saveBtn')}</button><button type="button" class="secondary" id="bm_cancel">${t('cancelBtn')}</button></div>
  `);
  const renderTemp=id=>{const box=$(`bm_${id}_chips`);box.innerHTML=temp[id].map((v,i)=>`<span class="chip" data-sort-item data-sort-index="${i}"><button type="button" class="drag-handle" aria-label="ترتيب العنصر" title="اسحب لإعادة الترتيب">⠿</button>${safe(v)} <button type="button" data-bm-rem="${id}" data-idx="${i}">×</button></span>`).join('')||`<span class="muted">${t('noItems')}</span>`;enableManualSort(box,'[data-sort-item]',(from,to)=>{moveArrayItem(temp[id],from,to);renderTemp(id)})};
- ['floors','facades','buildingTrades','facadeTrades'].forEach(renderTemp);
+ const renderScope=(type,i,locId)=>{const box=$(`bm_scope_${type}_${i}_chips`);if(!box)return;const names=scoped[type].names[locId]||[];box.innerHTML=names.map((v,j)=>`<span class="chip" data-sort-item data-sort-index="${j}"><button type="button" class="drag-handle" aria-label="ترتيب المهنة" title="اسحب لإعادة الترتيب">⠿</button>${safe(v)} <button type="button" data-bm-rem-scope="${type}" data-loc-id="${safe(locId)}" data-idx="${j}">×</button></span>`).join('')||`<span class="muted">${t('noItems')}</span>`;enableManualSort(box,'[data-sort-item]',(from,to)=>{moveArrayItem(scoped[type].names[locId],from,to);moveArrayItem(scoped[type].ids[locId],from,to);renderScope(type,i,locId)})};
+ ['floors','facades'].forEach(renderTemp);
+ temp.floors.forEach((_,i)=>renderScope('building',i,floorIds[i]));
+ temp.facades.forEach((_,i)=>renderScope('facade',i,facadeIds[i]));
  $('modalBody').querySelectorAll('[data-bm-add]').forEach(btn=>btn.onclick=()=>{
-  const id=btn.dataset.bmAdd, inp=$(`bm_${id}_in`), v=inp.value.trim();
-  if(!v)return; if(temp[id].some(x=>x.toLowerCase()===v.toLowerCase())){toast(t('alreadyExists'));return}
-  temp[id].push(v); inp.value=''; renderTemp(id);
+  const id=btn.dataset.bmAdd,inp=$(`bm_${id}_in`),v=inp.value.trim();
+  if(!v)return;if(temp[id].some(x=>x.toLowerCase()===v.toLowerCase())){toast(t('alreadyExists'));return}
+  temp[id].push(v);if(id==='floors')floorIds.push(uid('floor_'));else if(id==='facades')facadeIds.push(uid('facade_'));inp.value='';renderTemp(id);
+  if(id==='floors'){$('bm_scope_building_section').outerHTML=scopePanel('building',t('buildingTrades'),temp.floors,floorIds,t('bTradesPh'));temp.floors.forEach((_,i)=>renderScope('building',i,floorIds[i]));}
+  if(id==='facades'){$('bm_scope_facade_section').outerHTML=scopePanel('facade',t('facadeTrades'),temp.facades,facadeIds,t('fTradesPh'));temp.facades.forEach((_,i)=>renderScope('facade',i,facadeIds[i]));}
  });
  $('modalBody').onclick=e=>{
-  const r=e.target.closest('[data-bm-rem]');
-  if(r){temp[r.dataset.bmRem].splice(Number(r.dataset.idx),1);renderTemp(r.dataset.bmRem)}
+  const r=e.target.closest('[data-bm-rem]'),sr=e.target.closest('[data-bm-rem-scope]');
+  if(r){const key=r.dataset.bmRem,idx=Number(r.dataset.idx);temp[key].splice(idx,1);if(key==='floors'){const removed=floorIds.splice(idx,1)[0];delete scoped.building.names[removed];delete scoped.building.ids[removed];$('bm_scope_building_section').outerHTML=scopePanel('building',t('buildingTrades'),temp.floors,floorIds,t('bTradesPh'));temp.floors.forEach((_,i)=>renderScope('building',i,floorIds[i]));}if(key==='facades'){const removed=facadeIds.splice(idx,1)[0];delete scoped.facade.names[removed];delete scoped.facade.ids[removed];$('bm_scope_facade_section').outerHTML=scopePanel('facade',t('facadeTrades'),temp.facades,facadeIds,t('fTradesPh'));temp.facades.forEach((_,i)=>renderScope('facade',i,facadeIds[i]));}renderTemp(key)}
+  if(sr){const type=sr.dataset.bmRemScope,locId=sr.dataset.locId,idx=Number(sr.dataset.idx);scoped[type].names[locId].splice(idx,1);scoped[type].ids[locId].splice(idx,1);const locs=type==='building'?floorIds:facadeIds;renderScope(type,locs.indexOf(locId),locId)}
+  const add=e.target.closest('[data-bm-add-scope]');
+  if(add){const type=add.dataset.bmAddScope,locId=add.dataset.locId,inp=$(add.dataset.inputId),v=inp.value.trim();if(!v)return;scoped[type].names[locId]=scoped[type].names[locId]||[];scoped[type].ids[locId]=scoped[type].ids[locId]||[];if(scoped[type].names[locId].some(x=>x.toLowerCase()===v.toLowerCase())){toast(t('alreadyExists'));return}scoped[type].names[locId].push(v);scoped[type].ids[locId].push(uid('trade_'));inp.value='';const locs=type==='building'?floorIds:facadeIds;renderScope(type,locs.indexOf(locId),locId)}
  };
  $('bm_cancel').onclick=()=>{closeModal();if(onDone)onDone()};
  $('bm_save').onclick=()=>{
   const name=isMonobloc?'Monobloc':($('bm_name').value.trim());
   if(!isMonobloc&&!name){toast(t('enterBlocName'));return}
-  const obj={...existing,name,isMonobloc,...temp};
-  // Keep IDs for unchanged/reordered values; a replaced value inherits its prior slot ID as a rename.
-  ['floors','facades','buildingTrades','facadeTrades'].forEach(key=>{
-   const idKey=key==='floors'?'floorIds':key==='facades'?'facadeIds':key==='buildingTrades'?'buildingTradeIds':'facadeTradeIds';
-   const oldNames=existing[key]||[],oldIds=existing[idKey]||[],used=new Set();
-   obj[idKey]=temp[key].map((value,index)=>{
-    let oldIndex=oldNames.findIndex((v,i)=>v===value&&!used.has(i));
-    if(oldIndex<0&&index<oldIds.length&&!used.has(index))oldIndex=index;
-    if(oldIndex>=0&&oldIds[oldIndex]){used.add(oldIndex);return oldIds[oldIndex]}
-    return uid(idKey+'_');
-   });
-  });
+  const obj={...existing,name,isMonobloc,floors:[...temp.floors],facades:[...temp.facades],floorIds:[...floorIds],facadeIds:[...facadeIds]};
+  const uniqueEntries=(type)=>{const names=[],ids=[];const locIds=type==='building'?floorIds:facadeIds;locIds.forEach(locId=>(scoped[type].names[locId]||[]).forEach((n,i)=>{if(!names.includes(n)){names.push(n);ids.push(scoped[type].ids[locId]?.[i]||uid('trade_'))}}));return {names,ids}};
+  const b=uniqueEntries('building'),f=uniqueEntries('facade');
+  obj.buildingTrades=b.names;obj.buildingTradeIds=b.ids;obj.facadeTrades=f.names;obj.facadeTradeIds=f.ids;
+  obj.buildingTradesByLocation={};obj.buildingTradeIdsByLocation={};
+  obj.facadeTradesByLocation={};obj.facadeTradeIdsByLocation={};
+  floorIds.forEach(id=>{obj.buildingTradesByLocation[id]=[...(scoped.building.names[id]||[])];obj.buildingTradeIdsByLocation[id]=[...(scoped.building.ids[id]||[])];});
+  facadeIds.forEach(id=>{obj.facadeTradesByLocation[id]=[...(scoped.facade.names[id]||[])];obj.facadeTradeIdsByLocation[id]=[...(scoped.facade.ids[id]||[])];});
   if(editIdx!==null)formBlocDetails[editIdx]=obj;
-  else{
-   if(isMonobloc)formBlocDetails=formBlocDetails.filter(x=>!x.isMonobloc);
-   formBlocDetails.push(obj);
-  }
-  closeModal();
-  if(onDone)onDone();
+  else{if(isMonobloc)formBlocDetails=formBlocDetails.filter(x=>!x.isMonobloc);formBlocDetails.push(obj)}
+  closeModal();renderBlocCards($('projectFormRoot')||document);if(onDone)onDone();
  };
 }
-
 function initFormLists(p={}){
  if(p.blocDetails&&p.blocDetails.length){
   formBlocDetails=p.blocDetails.map(b=>({...b,floors:[...(b.floors||[])],facades:[...(b.facades||[])],buildingTrades:[...(b.buildingTrades||[])],facadeTrades:[...(b.facadeTrades||[])]}));
