@@ -1640,6 +1640,11 @@ function ensureProjectEntityIds(p,tracker=null){
   ['floors','facades','buildingTrades','facadeTrades'].forEach(k=>{if(!Array.isArray(b[k])){b[k]=[];markChanged()}});
   makeIds(b,b.floors,'floorIds');makeIds(b,b.facades,'facadeIds');
   makeIds(b,b.buildingTrades,'buildingTradeIds');makeIds(b,b.facadeTrades,'facadeTradeIds');
+  [['buildingTradesByLocation','buildingTradeIdsByLocation'],['facadeTradesByLocation','facadeTradeIdsByLocation']].forEach(([namesKey,idsKey])=>{
+   if(!b[namesKey]||typeof b[namesKey]!=='object'||Array.isArray(b[namesKey])){b[namesKey]={};markChanged()}
+   if(!b[idsKey]||typeof b[idsKey]!=='object'||Array.isArray(b[idsKey])){b[idsKey]={};markChanged()}
+   Object.keys(b[namesKey]).forEach(locId=>{const values=Array.isArray(b[namesKey][locId])?b[namesKey][locId]:[];b[namesKey][locId]=values;const idValues=Array.isArray(b[idsKey][locId])?b[idsKey][locId]:[];while(idValues.length<values.length){idValues.push(uid(idsKey+'_'));markChanged()}if(idValues.length>values.length){idValues.length=values.length;markChanged()}const seen=new Set();b[idsKey][locId]=idValues.map(id=>{if(!id||seen.has(id)){id=uid(idsKey+'_');markChanged()}seen.add(id);return id})});
+  });
  });
  if(!Array.isArray(p.checklist)){p.checklist=[];markChanged()}
  p.checklist.forEach(cp=>{
@@ -1663,14 +1668,19 @@ function ensureProjectEntityIds(p,tracker=null){
    const type=cp.metierType==='facade'?'facade':'building';
    const trades=type==='facade'?detail.facadeTrades:detail.buildingTrades;
    const ids=type==='facade'?detail.facadeTradeIds:detail.buildingTradeIds;
-   let idx=cp.metierId?ids.indexOf(cp.metierId):-1;
-   if(idx<0)idx=trades.findIndex(x=>String(x)===String(cp.metier));
-   if(idx>=0){if(cp.metierId!==ids[idx]){cp.metierId=ids[idx];markChanged()}if(cp.metier!==trades[idx]){cp.metier=trades[idx];markChanged()}}
    const locs=type==='facade'?detail.facades:detail.floors;
    const locIds=type==='facade'?detail.facadeIds:detail.floorIds;
    let li=cp.locationId?locIds.indexOf(cp.locationId):-1;
    if(li<0)li=locs.findIndex(x=>String(x)===String(cp.location));
    if(li>=0){if(cp.locationId!==locIds[li]){cp.locationId=locIds[li];markChanged()}if(cp.location!==locs[li]){cp.location=locs[li];markChanged()}}
+   const namesMap=type==='facade'?detail.facadeTradesByLocation:detail.buildingTradesByLocation;
+   const idsMap=type==='facade'?detail.facadeTradeIdsByLocation:detail.buildingTradeIdsByLocation;
+   const scopedNames=cp.locationId?(namesMap?.[cp.locationId]||[]):[];
+   const scopedIds=cp.locationId?(idsMap?.[cp.locationId]||[]):[];
+   let idx=cp.metierId?scopedIds.indexOf(cp.metierId):-1;
+   if(idx<0)idx=scopedNames.findIndex(x=>String(x)===String(cp.metier));
+   if(idx>=0){if(cp.metierId!==scopedIds[idx]){cp.metierId=scopedIds[idx];markChanged()}if(cp.metier!==scopedNames[idx]){cp.metier=scopedNames[idx];markChanged()}}
+   else{idx=cp.metierId?ids.indexOf(cp.metierId):-1;if(idx<0)idx=trades.findIndex(x=>String(x)===String(cp.metier));if(idx>=0){if(cp.metierId!==ids[idx]){cp.metierId=ids[idx];markChanged()}if(cp.metier!==trades[idx]){cp.metier=trades[idx];markChanged()}}}
   }
  });
  return p;
@@ -1708,10 +1718,20 @@ function detailForControlPoint(p,cp){
  const matches=(p.blocDetails||[]).filter(b=>cp.bloc?(!b.isMonobloc&&String(b.name)===String(cp.bloc)):(b.isMonobloc||String(b.name||'')==='Monobloc'));
  return matches.length===1?matches[0]:null;
 }
-function scopedTradesFor(p,detail,type){
+function scopedTradesFor(p,detail,type,locationId=null){
  if(!detail)return [];
  const facade=type==='facade',names=facade?detail.facadeTrades:detail.buildingTrades,ids=facade?detail.facadeTradeIds:detail.buildingTradeIds;
- return names.map((name,i)=>({name,id:ids[i],type:facade?'facade':'building',detail}));
+ const mapKey=facade?'facadeTradesByLocation':'buildingTradesByLocation',idMapKey=facade?'facadeTradeIdsByLocation':'buildingTradeIdsByLocation';
+ const byLocation=detail[mapKey]&&typeof detail[mapKey]==='object'?detail[mapKey]:null;
+ const byLocationIds=detail[idMapKey]&&typeof detail[idMapKey]==='object'?detail[idMapKey]:{};
+ if(byLocation&&Object.keys(byLocation).length){
+  const locationIds=locationId?[locationId]:Object.keys(byLocation);
+  const mapped=locationIds.flatMap(locId=>(byLocation[locId]||[]).map((name,i)=>({name,id:(byLocationIds[locId]||[])[i],type:facade?'facade':'building',detail,locationId:locId})));
+  if(locationId)return mapped;
+  // Include legacy métier entries only when no location-scoped list exists for this bloc/type.
+  if(mapped.length)return mapped;
+ }
+ return (names||[]).map((name,i)=>({name,id:(ids||[])[i],type:facade?'facade':'building',detail,locationId:null}));
 }
 function ensureTradeProgressData(detail){
  if(!detail)return;
@@ -2102,16 +2122,9 @@ function populateChecklistFilters(p){
  // La liste dépend du type d'emplacement choisi, et non des points
  // de contrôle déjà créés : les nouveaux métiers restent donc sélectionnables.
  const selectedLocation=locOptions.find(x=>x.id===curL);
- let tradeOptions=scopedDetails.flatMap(b=>[
-  ...scopedTradesFor(p,b,'building'),
-  ...scopedTradesFor(p,b,'facade')
- ]);
- if(selectedLocation){
-  const relevantType=selectedLocation.type==='floor'?'building':'facade';
-  tradeOptions=tradeOptions.filter(x=>
-   x.detail.blocId===selectedLocation.blocId&&x.type===relevantType
-  );
- }
+ let tradeOptions=selectedLocation
+  ? scopedTradesFor(p,scopedDetails.find(b=>b.blocId===selectedLocation.blocId),selectedLocation.type==='floor'?'building':'facade',selectedLocation.id)
+  : scopedDetails.flatMap(b=>[...scopedTradesFor(p,b,'building'),...scopedTradesFor(p,b,'facade')]);
  $('fltMetier').innerHTML=`<option value="">${t('allTrades')}</option>`+tradeOptions.map(x=>`<option value="${safe(x.id)}">${safe(x.name)} · ${safe(x.type==='facade'?t('tradeFacade'):t('tradeBuilding'))} · ${safe(x.detail.name||'Monobloc')}</option>`).join('');
  $('fltBloc').value=details.some(b=>b.blocId===curB)?curB:'';
  $('fltLoc').value=locOptions.some(x=>x.id===curL)?curL:'';
@@ -2401,11 +2414,11 @@ function openAddControlPointModal(forceType=null){
   refreshLocations();
   function refreshLocations(){
    const selected=opts.find(x=>x.id===$('ncp_metier').value),isFacade=selected?.type==='facade';
-   const names=isFacade?d.facades:d.floors,ids=isFacade?d.facadeIds:d.floorIds;
-   $('ncp_loc').innerHTML='<option value="">—</option>'+names.map((name,i)=>`<option value="${safe(ids[i])}">${safe(name)}</option>`).join('');
+   const names=isFacade?d.facades:d.floors,ids=isFacade?d.facadeIds:d.floorIds,tradeLoc=selected?.locationId;
+   $('ncp_loc').innerHTML='<option value="">—</option>'+names.map((name,i)=>({name,id:ids[i]})).filter(x=>!tradeLoc||x.id===tradeLoc).map(x=>`<option value="${safe(x.id)}">${safe(x.name)}</option>`).join('');
    if(ids.includes(oldLoc))$('ncp_loc').value=oldLoc;
   }
-  $('ncp_metier').onchange=()=>{const selected=opts.find(x=>x.id===$('ncp_metier').value),isFacade=selected?.type==='facade',names=isFacade?d.facades:d.floors,ids=isFacade?d.facadeIds:d.floorIds;$('ncp_loc').innerHTML='<option value="">—</option>'+names.map((name,i)=>`<option value="${safe(ids[i])}">${safe(name)}</option>`).join('')};
+  $('ncp_metier').onchange=()=>{const selected=opts.find(x=>x.id===$('ncp_metier').value),isFacade=selected?.type==='facade',names=isFacade?d.facades:d.floors,ids=isFacade?d.facadeIds:d.floorIds;$('ncp_loc').innerHTML='<option value="">—</option>'+names.map((name,i)=>({name,id:ids[i]})).filter(x=>!selected?.locationId||x.id===selected.locationId).map(x=>`<option value="${safe(x.id)}">${safe(x.name)}</option>`).join('')};
  };
  $('ncp_bloc').onchange=refresh;refresh();
  $('ncp_save').onclick=async()=>{
@@ -2413,7 +2426,7 @@ function openAddControlPointModal(forceType=null){
   const d=details.find(x=>x.blocId===$('ncp_bloc').value),trade=tradesFor(d).find(x=>x.id===$('ncp_metier').value);
   if(!d||!trade){toast(t('noTradesAvail'));return}
   const locId=$('ncp_loc').value,locs=trade.type==='facade'?d.facades:d.floors,locIds=trade.type==='facade'?d.facadeIds:d.floorIds,li=locIds.indexOf(locId);
-  if(locId&&li<0){toast(t('noTradesAvail'));return}
+  if((trade.locationId&&locId!==trade.locationId)||(locId&&li<0)){toast(t('noTradesAvail'));return}
   p.checklist=p.checklist||[];
   p.checklist.push({id:uid('cp_'),name,metier:trade.name,metierType:trade.type,metierId:trade.id,bloc:d.isMonobloc?'':d.name,blocId:d.blocId,location:li>=0?locs[li]:'',locationId:li>=0?locId:'',description:$('ncp_desc').value.trim()});
   closeModal();await saveProjectChecklist(p);toast(t('cpAdded'));
@@ -2440,6 +2453,16 @@ function excelAddUnique(arr,value){
  const v=String(value??'').trim();if(!v)return false;
  if(arr.some(x=>excelNorm(x)===excelNorm(v)))return false;
  arr.push(v);return true;
+}
+function excelAddLocationTrade(detail,type,location,trade){
+ const facade=type==='facade',locNames=facade?detail.facades:detail.floors,locIds=facade?detail.facadeIds:detail.floorIds;
+ const li=locNames.findIndex(x=>excelNorm(x)===excelNorm(location));if(li<0)return '';
+ if(!locIds[li])locIds[li]=uid(facade?'facadeIds_':'floorIds_');
+ const locId=locIds[li],namesKey=facade?'facadeTradesByLocation':'buildingTradesByLocation',idsKey=facade?'facadeTradeIdsByLocation':'buildingTradeIdsByLocation';
+ detail[namesKey]=detail[namesKey]||{};detail[idsKey]=detail[idsKey]||{};detail[namesKey][locId]=detail[namesKey][locId]||[];detail[idsKey][locId]=detail[idsKey][locId]||[];
+ let ti=detail[namesKey][locId].findIndex(x=>excelNorm(x)===excelNorm(trade));
+ if(ti<0){detail[namesKey][locId].push(String(trade).trim());detail[idsKey][locId].push(uid(idsKey+'_'));ti=detail[namesKey][locId].length-1;}
+ return detail[idsKey][locId][ti];
 }
 $('excelImportInput').onchange=async e=>{
  const input=e.target,file=input.files&&input.files[0];input.value='';
@@ -2490,8 +2513,8 @@ $('excelImportInput').onchange=async e=>{
    if(row.bloc)structureAdded+=excelAddUnique(p.blocks=p.blocks||[],row.bloc)?1:0;
    if(row.floor){structureAdded+=excelAddUnique(detail.floors,row.floor)?1:0;structureAdded+=excelAddUnique(p.floors=p.floors||[],row.floor)?1:0;}
    if(row.facade){structureAdded+=excelAddUnique(detail.facades,row.facade)?1:0;structureAdded+=excelAddUnique(p.facades=p.facades||[],row.facade)?1:0;}
-   if(row.bt){structureAdded+=excelAddUnique(detail.buildingTrades,row.bt)?1:0;structureAdded+=excelAddUnique(p.buildingTrades=p.buildingTrades||[],row.bt)?1:0;addGroup('building',detail,row.bloc,row.floor,row.bt,row.bcp,row.bd);}
-   if(row.ft){structureAdded+=excelAddUnique(detail.facadeTrades,row.ft)?1:0;structureAdded+=excelAddUnique(p.facadeTrades=p.facadeTrades||[],row.ft)?1:0;addGroup('facade',detail,row.bloc,row.facade,row.ft,row.fcp,row.fd);}
+   if(row.bt){structureAdded+=excelAddUnique(detail.buildingTrades,row.bt)?1:0;structureAdded+=excelAddUnique(p.buildingTrades=p.buildingTrades||[],row.bt)?1:0;if(row.floor)excelAddLocationTrade(detail,'building',row.floor,row.bt);addGroup('building',detail,row.bloc,row.floor,row.bt,row.bcp,row.bd);}
+   if(row.ft){structureAdded+=excelAddUnique(detail.facadeTrades,row.ft)?1:0;structureAdded+=excelAddUnique(p.facadeTrades=p.facadeTrades||[],row.ft)?1:0;if(row.facade)excelAddLocationTrade(detail,'facade',row.facade,row.ft);addGroup('facade',detail,row.bloc,row.facade,row.ft,row.fcp,row.fd);}
   }
   if(!validRows)throw new Error('Aucune ligne de données exploitable.');
   // Update only represented groups. Exact matches retain their visits and IDs; métier/location progress stays in blocDetails.
@@ -2501,8 +2524,8 @@ $('excelImportInput').onchange=async e=>{
    const unmatched=[...existing];
    g.items.forEach(item=>{
     const exact=unmatched.findIndex(c=>excelNorm(c.name)===excelNorm(item.name));
-    if(exact>=0){const cp=unmatched.splice(exact,1)[0];if((cp.description||'')!==item.description){cp.description=item.description;updated++;}}
-    else{const d=g.detail,facade=g.type==='facade',tradeArr=facade?d.facadeTrades:d.buildingTrades,tradeIds=facade?d.facadeTradeIds:d.buildingTradeIds,locArr=facade?d.facades:d.floors,locIds=facade?d.facadeIds:d.floorIds,ti=tradeArr.findIndex(x=>excelNorm(x)===excelNorm(g.trade)),li=locArr.findIndex(x=>excelNorm(x)===excelNorm(g.location));p.checklist.push({id:uid('cp_'),name:item.name,metier:g.trade,metierType:g.type,metierId:ti>=0?tradeIds[ti]:undefined,bloc:g.bloc,blocId:g.blocId,location:g.location,locationId:li>=0?locIds[li]:undefined,description:item.description});added++;}
+    if(exact>=0){const cp=unmatched.splice(exact,1)[0],d=g.detail,facade=g.type==='facade',locArr=facade?d.facades:d.floors,locIds=facade?d.facadeIds:d.floorIds,li=locArr.findIndex(x=>excelNorm(x)===excelNorm(g.location)),locationId=li>=0?locIds[li]:undefined,namesMap=facade?d.facadeTradesByLocation:d.buildingTradesByLocation,idsMap=facade?d.facadeTradeIdsByLocation:d.buildingTradeIdsByLocation,scopedNames=locationId?(namesMap||{})[locationId]||[]:[],scopedIds=locationId?(idsMap||{})[locationId]||[]:[],si=scopedNames.findIndex(x=>excelNorm(x)===excelNorm(g.trade));if(locationId&&cp.locationId!==locationId)cp.locationId=locationId;if(si>=0&&cp.metierId!==scopedIds[si])cp.metierId=scopedIds[si];if((cp.description||'')!==item.description){cp.description=item.description;updated++;}}
+    else{const d=g.detail,facade=g.type==='facade',tradeArr=facade?d.facadeTrades:d.buildingTrades,tradeIds=facade?d.facadeTradeIds:d.buildingTradeIds,locArr=facade?d.facades:d.floors,locIds=facade?d.facadeIds:d.floorIds,ti=tradeArr.findIndex(x=>excelNorm(x)===excelNorm(g.trade)),li=locArr.findIndex(x=>excelNorm(x)===excelNorm(g.location)),locationId=li>=0?locIds[li]:undefined,scopedIds=locationId?(facade?d.facadeTradeIdsByLocation:d.buildingTradeIdsByLocation)?.[locationId]:null,scopedNames=locationId?(facade?d.facadeTradesByLocation:d.buildingTradesByLocation)?.[locationId]:null,si=(scopedNames||[]).findIndex(x=>excelNorm(x)===excelNorm(g.trade));p.checklist.push({id:uid('cp_'),name:item.name,metier:g.trade,metierType:g.type,metierId:si>=0?scopedIds[si]:(ti>=0?tradeIds[ti]:undefined),bloc:g.bloc,blocId:g.blocId,location:g.location,locationId,description:item.description});added++;}
    });
    unmatched.forEach(cp=>{const idx=p.checklist.indexOf(cp);if(idx>=0){p.checklist.splice(idx,1);removed++;}});
   });
@@ -2535,16 +2558,18 @@ async function exportChecklistExcel(){
  details.forEach(detail=>{
   const bloc=detail.isMonobloc?'':(detail.name||'');
   const floors=detail.floors||[],facades=detail.facades||[],bTrades=detail.buildingTrades||[],fTrades=detail.facadeTrades||[];
+  const bTradesFor=fl=>{const i=floors.findIndex(x=>excelNorm(x)===excelNorm(fl)),id=i>=0?detail.floorIds?.[i]:null;return id&&detail.buildingTradesByLocation?.[id]?.length?detail.buildingTradesByLocation[id]:bTrades};
+  const fTradesFor=fa=>{const i=facades.findIndex(x=>excelNorm(x)===excelNorm(fa)),id=i>=0?detail.facadeIds?.[i]:null;return id&&detail.facadeTradesByLocation?.[id]?.length?detail.facadeTradesByLocation[id]:fTrades};
   const sameNameDetails=details.filter(x=>!x.isMonobloc&&!detail.isMonobloc&&excelNorm(x.name)===excelNorm(detail.name));
   const related=(p.checklist||[]).filter(cp=>cp.blocId?cp.blocId===detail.blocId:(sameNameDetails.length<=1&&excelNorm(cp.bloc)===excelNorm(bloc)));
   const building=related.filter(cp=>(cp.metierType||'building')==='building'),facadePoints=related.filter(cp=>cp.metierType==='facade');
   const bCombos=[];
-  (floors.length?floors:['']).forEach(fl=>(bTrades.length?bTrades:['']).forEach(tr=>{
+  (floors.length?floors:['']).forEach(fl=>(bTradesFor(fl).length?bTradesFor(fl):['']).forEach(tr=>{
    const cps=building.filter(cp=>excelNorm(cp.location)===excelNorm(fl)&&excelNorm(cp.metier)===excelNorm(tr));
    if(cps.length)cps.forEach(cp=>bCombos.push({fl,tr,cp}));else bCombos.push({fl,tr,cp:null});
   }));
   const fCombos=[];
-  (facades.length?facades:['']).forEach(fa=>(fTrades.length?fTrades:['']).forEach(tr=>{
+  (facades.length?facades:['']).forEach(fa=>(fTradesFor(fa).length?fTradesFor(fa):['']).forEach(tr=>{
    const cps=facadePoints.filter(cp=>excelNorm(cp.location)===excelNorm(fa)&&excelNorm(cp.metier)===excelNorm(tr));
    if(cps.length)cps.forEach(cp=>fCombos.push({fa,tr,cp}));else fCombos.push({fa,tr,cp:null});
   }));
