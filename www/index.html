@@ -585,7 +585,6 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}
    </div>
    <section class="chart-panel"><div class="chart-toolbar" id="chartModes">
     <button class="secondary active" data-chart="bar" data-chart-i18n="bar">Barres</button><button class="secondary" data-chart="line" data-chart-i18n="line">Linéaire</button><button class="secondary" data-chart="donut" data-chart-i18n="donut">Donut</button><button class="secondary" data-chart="area" data-chart-i18n="area">Aires</button>
-    <select id="chFocus" aria-label="Métier à analyser"></select>
    </div><div id="chartGraphic" class="chart-svg-wrap"></div><div id="chartTooltip" class="chart-tooltip" aria-live="polite"></div></section>
    <section class="chart-panel"><h3 data-chart-i18n="analysis">Analyses complémentaires</h3><div class="chart-analysis-grid"><div><h4 data-chart-i18n="byTrade">Comparaison par Métier</h4><div id="chByTrade"></div></div><div><h4 data-chart-i18n="byBlock">Avancement par Bloc</h4><div id="chByBlock"></div></div><div><h4 data-chart-i18n="byLoc">Avancement par Étage / Façade</h4><div id="chByLoc"></div></div><div><h4 data-chart-i18n="remaining">Réalisé / Restant</h4><div id="chRemaining"></div></div></div></section>
    <section class="chart-panel"><div class="chart-toolbar"><h3 style="margin:0;flex:1" data-chart-i18n="tableTitle">Tableau Récapitulatif</h3><button class="secondary small" id="chSort" data-chart-i18n="sortAsc">Trier ↑</button></div><div id="chTable" class="chart-table-wrap"></div></section>
@@ -2026,13 +2025,6 @@ function fillChartFilters(p){
  return scopes;
 }
 
-function chartTradeFocus(groups){
- const el=$('chFocus'),old=el.value;
- const special=[['__building__',ct('allBuildingTrades')],['__facade__',ct('allFacadeTrades')],['__all__',ct('allProjectTrades')]];
- el.innerHTML=`<option value="">${ct('chooseTrade')}</option>`+special.map(([v,label])=>`<option value="${v}">${chartEsc(label)}</option>`).join('')+groups.map(g=>`<option value="${chartEsc(g.key)}">${chartEsc(chartGroupLabel(g))}</option>`).join('');
- if([...el.options].some(o=>o.value===old))el.value=old;if(!el.value)el.value=chartMode==='donut'?'__all__':(groups.length?'__all__':'');
- return {value:el.value,group:groups.find(g=>g.key===el.value)};
-}
 function chartEmpty(msg=ct('empty')){$('chartGraphic').innerHTML=`<div class="chart-empty">${chartEsc(msg)}</div>`;$('chartTooltip').textContent='';}
 function svgText(x,y,text,anchor='middle'){return `<text x="${x}" y="${y}" text-anchor="${anchor}">${chartEsc(text)}</text>`}
 function drawBar(groups){
@@ -2089,11 +2081,10 @@ async function printHtmlViaAndroid(html, jobName){
 
 async function exportChartsPDF(){
  const p=activeProject();if(!p)return;
- const groups=chartFiltered(),focusKey=$('chFocus').value;
- const focus=groups.find(g=>g.key===focusKey)||groups[0];
+ const groups=chartFiltered();
  const modeNames={bar:'Barres',line:'Linéaire',donut:'Donut',area:'Aires'};
  const selected=id=>{const el=$(id);return el&&el.selectedIndex>=0?el.options[el.selectedIndex].textContent.trim():'—'};
- const filters=[['Bloc',selected('chBloc')],['Étage / Façade',selected('chLoc')],['Métier',selected('chMetier')],['Type',selected('chType')],['Métier analysé',focus?chartGroupLabel(focus):'—']];
+ const filters=[['Bloc',selected('chBloc')],['Étage / Façade',selected('chLoc')],['Métier',selected('chMetier')],['Type',selected('chType')]];
  const graphic=$('chartGraphic').innerHTML;
  const kpis=[['Avancement global',$('chGlobal').textContent],['Nombre de métiers',$('chTradeCount').textContent],['Métiers avancés (≥80%)',$('chAdvanced').textContent],['Métiers en retard (<30%)',$('chLate').textContent]];
  const clone=id=>$(id).innerHTML;
@@ -2132,12 +2123,12 @@ async function exportChartsPDF(){
  },450);
 }
 function renderChartsPage(){
- const p=activeProject();if(!p||!$('chartsView'))return;const scopes=fillChartFilters(p),groups=chartFiltered(scopes),focus=chartTradeFocus(groups),selection=focus.value;
- const displayGroups=selection==='__building__'?groups.filter(g=>g.type==='building'):selection==='__facade__'?groups.filter(g=>g.type==='facade'):selection==='__all__'?groups:focus.group?[focus.group]:groups;
+ const p=activeProject();if(!p||!$('chartsView'))return;const scopes=fillChartFilters(p),groups=chartFiltered(scopes);
+ const displayGroups=groups;
  const scopedPoints=groups.flatMap(g=>g.points.map(x=>x.pct));const overall=scopedPoints.length?Math.round(scopedPoints.reduce((a,v)=>a+v,0)/scopedPoints.length):null;
  $('chGlobal').textContent=overall===null?'—':overall+'%';$('chGlobalBar').style.width=(overall||0)+'%';$('chTradeCount').textContent=groups.length;$('chAdvanced').textContent=groups.filter(g=>g.pct>=80).length;$('chLate').textContent=groups.filter(g=>g.pct<30).length;
  $('chartModes').querySelectorAll('[data-chart]').forEach(b=>b.classList.toggle('active',b.dataset.chart===chartMode));
- if(chartMode==='bar')drawBar(groups);else if(chartMode==='line')drawTimeline(displayGroups,false);else if(chartMode==='area')drawTimeline(displayGroups,true);else drawDonut(displayGroups,selection);
+ if(chartMode==='bar')drawBar(groups);else if(chartMode==='line')drawTimeline(displayGroups,false);else if(chartMode==='area')drawTimeline(displayGroups,true);else drawDonut(displayGroups,'__all__');
  analysisRows('chByTrade',[...groups].sort((a,b)=>b.pct-a.pct).map(g=>({...g,name:chartGroupLabel(g)})));
  const allPts=groups.flatMap(g=>g.points.map(x=>({cp:x.cp,pct:x.pct}))),blockStats=new Map(),locMap=new Map();
  allPts.forEach(x=>{
@@ -2156,7 +2147,7 @@ function renderChartsPage(){
  $('chTable').innerHTML=rows.length?`<table class="chart-table"><thead><tr><th>Métier</th><th>${ct('type')}</th><th>${ct('bloc')}</th><th>${ct('loc')}</th><th>${ct('progress')}</th></tr></thead><tbody>${rows.map(r=>`<tr><td data-label="Métier">${chartEsc(r.name)}</td><td data-label="${ct('type')}">${r.type==='facade'?ct('facade'):ct('building')}</td><td data-label="${ct('bloc')}">${chartEsc(r.bloc)}</td><td data-label="${ct('loc')}">${chartEsc(r.loc)}</td><td data-label="${ct('progress')}"><div class="chart-mini"><b>${r.pct}%</b><div class="bar"><span style="width:${r.pct}%"></span></div></div></td></tr>`).join('')}</tbody></table>`:`<div class="chart-empty">${ct('empty')}</div>`;
 }
 
-['chBloc','chLoc','chMetier','chType','chFocus'].forEach(id=>$(id).addEventListener('change',renderChartsPage));
+['chBloc','chLoc','chMetier','chType'].forEach(id=>$(id).addEventListener('change',renderChartsPage));
 $('chReset').onclick=()=>{['chBloc','chLoc','chMetier','chType'].forEach(id=>$(id).value='');renderChartsPage()};
 $('chartModes').addEventListener('click',e=>{const b=e.target.closest('[data-chart]');if(!b)return;chartMode=b.dataset.chart;renderChartsPage()});
 $('chSort').onclick=()=>{chartSortAsc=!chartSortAsc;renderChartsPage()};
